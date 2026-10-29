@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>IMC — Census &amp; Revenue Dashboard (Jan–Sep)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    /* IMC Brand palette (from logo) */
+    --imc-navy:#0E356A;
+    --imc-navy-dark:#082348;
+    --imc-blue:#1B5894;
+    --imc-blue-mid:#2E6FB0;
+    --imc-blue-light:#6F9FD3;
+    --imc-blue-soft:#B5CDE8;
+    --imc-gold:#C9A24B;
+    --imc-cream:#F7F3EA;
+    --bg:#F4F6FB;
+    --surface:#FFFFFF;
+    --surface-2:#F9FBFE;
+    --border:#DCE4F0;
+    --border-soft:#EBF0F7;
+    --text:#0F2A4F;
+    --text-soft:#415778;
+    --muted:#6B7E9B;
+    --pos:#1E8E6B;
+    --neg:#CF3754;
+    --warn:#D98B16;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+    font-size:14px;min-height:100vh}
+
+  /* HEADER */
+  header{background:linear-gradient(135deg,var(--imc-navy-dark) 0%,var(--imc-navy) 50%,var(--imc-blue) 100%);
+    color:#fff;padding:14px 24px;position:sticky;top:0;z-index:60;
+    box-shadow:0 2px 10px rgba(14,53,106,.15);
+    display:flex;align-items:center;gap:18px;flex-wrap:wrap;border-bottom:3px solid var(--imc-gold)}
+  .brand{display:flex;align-items:center;gap:14px;flex:1;min-width:280px}
+  .brand img{height:56px;width:auto;background:#fff;padding:5px 8px;border-radius:8px;
+    box-shadow:0 2px 6px rgba(0,0,0,.15)}
+  .brand h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.2px;line-height:1.15}
+  .brand h1 .accent{color:var(--imc-gold);font-weight:500;font-size:17px}
+  .brand .sub{font-size:12px;color:rgba(255,255,255,.85);margin-top:3px;letter-spacing:.3px}
+  .header-actions{display:flex;align-items:center;gap:10px}
+  .btn{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.25);
+    padding:7px 14px;border-radius:6px;font-size:12.5px;cursor:pointer;font-weight:500;transition:all .15s}
+  .btn:hover{background:rgba(255,255,255,.25)}
+  .btn.gold{background:var(--imc-gold);border-color:var(--imc-gold);color:#2a1e05;font-weight:600}
+  .btn.gold:hover{background:#d9b25a}
+
+  /* LAYOUT */
+  .layout{display:grid;grid-template-columns:300px 1fr;min-height:calc(100vh - 90px)}
+
+  /* FILTER PANEL */
+  aside{background:var(--surface);border-right:1px solid var(--border);
+    padding:16px 14px;overflow-y:auto;max-height:calc(100vh - 90px);position:sticky;top:90px}
+  .filter-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;
+    padding-bottom:8px;border-bottom:2px solid var(--imc-navy)}
+  .filter-head h2{margin:0;font-size:13.5px;color:var(--imc-navy);font-weight:700;letter-spacing:.6px;
+    text-transform:uppercase}
+  .filter-head .reset{background:none;border:none;color:var(--imc-blue);font-size:11px;cursor:pointer;
+    text-decoration:underline;padding:0;font-weight:500}
+  .filter-group{margin-bottom:14px;border:1px solid var(--border);border-radius:7px;overflow:hidden}
+  .fg-head{background:linear-gradient(90deg,var(--imc-navy),var(--imc-blue));color:#fff;
+    padding:7px 10px;font-size:11.5px;font-weight:600;letter-spacing:.5px;cursor:pointer;
+    display:flex;justify-content:space-between;align-items:center;text-transform:uppercase}
+  .fg-head .count{background:rgba(255,255,255,.25);padding:1px 7px;border-radius:9px;font-size:10px;font-weight:600}
+  .fg-head .caret{transition:transform .18s}
+  .fg-head.collapsed .caret{transform:rotate(-90deg)}
+  .fg-body{padding:8px 10px;background:#fff}
+  .fg-body.hidden{display:none}
+  .fg-search{width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:5px;
+    font-size:11.5px;margin-bottom:6px;outline:none;color:var(--text)}
+  .fg-search:focus{border-color:var(--imc-blue)}
+  .fg-actions{display:flex;gap:4px;margin-bottom:6px}
+  .fg-mini{flex:1;background:var(--surface-2);border:1px solid var(--border);color:var(--imc-navy);
+    font-size:10.5px;padding:3px 6px;border-radius:4px;cursor:pointer;font-weight:500}
+  .fg-mini:hover{background:var(--imc-blue-soft)}
+  .chk-list{max-height:200px;overflow-y:auto;padding:2px 4px 2px 0}
+  .chk-list.tall{max-height:280px}
+  .chk{display:flex;align-items:center;gap:6px;padding:3px 4px;border-radius:4px;cursor:pointer;
+    font-size:12px;line-height:1.3;color:var(--text-soft)}
+  .chk:hover{background:var(--surface-2)}
+  .chk input{accent-color:var(--imc-navy);cursor:pointer;flex-shrink:0}
+  .chk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chk.disabled{opacity:.4;cursor:not-allowed}
+
+  /* MAIN */
+  main{padding:16px 20px 60px 20px;overflow-x:hidden}
+  .status-bar{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--imc-gold);
+    border-radius:7px;padding:9px 14px;margin-bottom:14px;font-size:12.5px;color:var(--text-soft);
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+  .status-bar strong{color:var(--imc-navy)}
+  .status-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{background:var(--imc-blue-soft);color:var(--imc-navy);padding:2px 8px;border-radius:9px;
+    font-size:11px;font-weight:600}
+
+  /* TABS */
+  .tabs{display:flex;gap:2px;background:var(--surface);border:1px solid var(--border);
+    border-radius:8px;padding:4px;margin-bottom:14px;overflow-x:auto}
+  .tab{padding:8px 14px;background:transparent;border:none;color:var(--text-soft);cursor:pointer;
+    font-size:13px;border-radius:5px;transition:all .15s;white-space:nowrap;font-weight:500}
+  .tab:hover{background:var(--surface-2)}
+  .tab.active{background:linear-gradient(135deg,var(--imc-navy),var(--imc-blue));color:#fff;font-weight:600}
+  .section{display:none}
+  .section.active{display:block}
+
+  /* KPIs */
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:11px;margin-bottom:14px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--imc-navy);
+    border-radius:7px;padding:12px 14px;position:relative;transition:transform .15s}
+  .kpi:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(14,53,106,.08)}
+  .kpi.op{border-top-color:#1E8E6B}
+  .kpi.ip{border-top-color:#7A4FBF}
+  .kpi.rev{border-top-color:var(--imc-gold)}
+  .kpi.pat{border-top-color:#D98B16}
+  .kpi .label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;font-weight:600}
+  .kpi .value{font-size:20px;font-weight:700;line-height:1.15;color:var(--imc-navy);font-variant-numeric:tabular-nums}
+  .kpi .sub2{font-size:11px;color:var(--muted);margin-top:3px}
+  .kpi .delta{display:inline-block;font-size:11px;margin-top:5px;font-weight:700;padding:1px 7px;border-radius:9px}
+  .kpi .delta.up{color:var(--pos);background:rgba(30,142,107,.1)}
+  .kpi .delta.down{color:var(--neg);background:rgba(207,55,84,.1)}
+
+  /* CARDS */
+  .grid{display:grid;gap:12px}
+  .charts-grid{grid-template-columns:repeat(auto-fit,minmax(380px,1fr))}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}
+  .card h3{margin:0 0 10px 0;font-size:13px;color:var(--imc-navy);font-weight:700;letter-spacing:.3px;
+    display:flex;justify-content:space-between;align-items:center;padding-bottom:6px;
+    border-bottom:1px solid var(--border-soft)}
+  .card h3 .badge{background:var(--imc-blue-soft);color:var(--imc-navy);padding:1px 8px;border-radius:9px;
+    font-size:10px;font-weight:600}
+  .chart-container{position:relative;height:290px}
+  .chart-container.tall{height:400px}
+  .chart-container.xtall{height:540px}
+
+  /* TABLES */
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:left;padding:7px 9px;background:var(--imc-navy);color:#fff;font-weight:600;
+    text-transform:uppercase;font-size:10.5px;letter-spacing:.4px;position:sticky;top:0;z-index:1}
+  td{padding:6px 9px;border-top:1px solid var(--border-soft);color:var(--text)}
+  tbody tr:nth-child(even) td{background:var(--surface-2)}
+  tbody tr:hover td{background:#EBF2FB}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  th.num{text-align:right}
+  .scroll{max-height:460px;overflow:auto;border:1px solid var(--border);border-radius:7px}
+
+  /* INSIGHTS */
+  .insights{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px}
+  .insights h3{margin:0 0 10px 0;color:#fff;background:linear-gradient(135deg,var(--imc-navy),var(--imc-blue));
+    padding:7px 11px;border-radius:5px;font-size:13px}
+  .insight-item{padding:9px 11px;background:var(--surface-2);border-radius:6px;margin-bottom:7px;
+    border-left:3px solid var(--imc-blue);font-size:12.5px;line-height:1.55;color:var(--text)}
+  .insight-item.warn{border-left-color:var(--warn);background:#FFF8EE}
+  .insight-item.pos{border-left-color:var(--pos);background:#EEFBF5}
+  .insight-item.neg{border-left-color:var(--neg);background:#FFF0F3}
+  .insight-item strong{color:var(--imc-navy)}
+
+  .footer{text-align:center;color:var(--muted);font-size:11px;padding:16px}
+  .footer img{height:30px;vertical-align:middle;margin-right:8px;background:#fff;padding:2px 4px;border-radius:4px}
+
+  @media(max-width:980px){
+    .layout{grid-template-columns:1fr}
+    aside{position:static;max-height:none;max-height:400px;border-right:none;border-bottom:1px solid var(--border)}
+  }
+
+  .menu-btn{display:none}
+  .drawer-close{display:none}
+  .overlay{display:none}
+  .loader{position:fixed;inset:0;background:#F4F6FB;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;z-index:200;gap:14px;color:#0E356A;font-weight:600}
+  .loader img{height:80px}
+  .spin{width:38px;height:38px;border:4px solid #B5CDE8;border-top-color:#0E356A;border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .login{display:none;background:#fff;border:1px solid #DCE4F0;border-top:4px solid #C9A24B;border-radius:10px;
+    padding:22px 22px 18px;width:min(92vw,360px);box-shadow:0 10px 30px rgba(14,53,106,.12);font-weight:400}
+  .lg-title{font-size:17px;font-weight:700;color:#0E356A}
+  .lg-sub{font-size:12px;color:#6B7E9B;margin:4px 0 14px}
+  .lg-row{display:flex;gap:6px}
+  .lg-row input{flex:1;padding:11px 12px;border:1px solid #DCE4F0;border-radius:7px;font-size:15px;outline:none;color:#0F2A4F}
+  .lg-row input:focus{border-color:#1B5894;box-shadow:0 0 0 3px rgba(27,88,148,.12)}
+  .lg-row button{border:1px solid #DCE4F0;background:#F9FBFE;border-radius:7px;cursor:pointer;padding:0 10px}
+  .lg-rem{display:flex;gap:6px;align-items:center;font-size:11.5px;color:#415778;margin:10px 0 12px}
+  .lg-btn{width:100%;padding:11px;border:none;border-radius:7px;color:#fff;font-weight:600;font-size:14px;cursor:pointer;
+    background:linear-gradient(135deg,#0E356A,#1B5894)}
+  .lg-btn:disabled{opacity:.6;cursor:wait}
+  .lg-err{color:#CF3754;font-size:12px;margin-top:8px;min-height:16px;text-align:center}
+  .btn-lock{display:none}
+  .loader .pick{display:none;text-align:center;font-weight:400;color:#415778;max-width:420px}
+  @media(max-width:980px){
+    header{padding:10px 12px;gap:10px}
+    .brand{min-width:0}
+    .brand img{height:40px}
+    .brand h1{font-size:15px}
+    .brand h1 .accent{display:none}
+    .brand{flex:1 1 100%}
+    .header-actions{flex:1 1 100%;justify-content:space-between}
+    .brand .sub{font-size:10.5px}
+    .header-actions .btn{padding:6px 9px;font-size:11.5px}
+    .menu-btn{display:inline-block}
+    .layout{grid-template-columns:1fr}
+    aside{position:fixed;top:0;left:0;bottom:0;width:86vw;max-width:340px;max-height:none;z-index:120;
+      transform:translateX(-105%);transition:transform .25s;box-shadow:4px 0 20px rgba(0,0,0,.2)}
+    aside.open{transform:none}
+    .drawer-close{display:block;width:100%;margin-top:8px;background:#0E356A;color:#fff;border:none;
+      padding:10px;border-radius:6px;font-weight:600;position:sticky;bottom:0}
+    .overlay.show{display:block;position:fixed;inset:0;background:rgba(8,35,72,.45);z-index:110}
+    main{padding:10px 10px 40px}
+    .charts-grid{grid-template-columns:1fr}
+    .kpi-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+    .kpi{padding:9px 10px}
+    .kpi .value{font-size:16px}
+    .chart-container{height:250px}
+    .chart-container.tall{height:320px}
+    .chart-container.xtall{height:440px}
+    .tabs{flex-wrap:nowrap}
+    .card{padding:10px}
+    table{font-size:11px}
+  }
+  @media print{aside,.tabs,.header-actions,.status-bar{display:none!important}.layout{grid-template-columns:1fr}
+    header{position:static}.section{display:block!important;page-break-after:always}}
+</style>
+</head>
+<body>
+<div class="loader" id="loader"><img src="logo.webp" alt="IMC"><div class="spin" id="spin"></div><div id="loadMsg">Loading IMC data…</div>
+<form class="login" id="login" autocomplete="off">
+  <div class="lg-title">🔒 Protected dashboard</div>
+  <div class="lg-sub">Enter the password provided by IMC management</div>
+  <div class="lg-row"><input type="password" id="pw" placeholder="Password" autocomplete="current-password">
+  <button type="button" id="pwEye" title="Show / hide">👁</button></div>
+  <label class="lg-rem"><input type="checkbox" id="pwRemember"> Keep me signed in on this device (until browser closes)</label>
+  <button type="submit" class="lg-btn" id="pwBtn">Unlock dashboard</button>
+  <div class="lg-err" id="pwErr"></div>
+</form>
+<div class="pick" id="pick">The data file could not be loaded automatically (this happens when the page is opened straight from disk).<br><br>
+<label class="btn gold" style="display:inline-block;cursor:pointer">📂 Select data file (data.enc / data.json)<input type="file" id="pickFile" accept=".json,.enc" style="display:none"></label></div></div>
+<div class="overlay" id="overlay"></div>
+<header>
+  <div class="brand">
+    <img src="logo.webp" alt="IMC Logo">
+    <div>
+      <h1>International Medical Center <span class="accent">|  Executive Dashboard</span></h1>
+      <div class="sub" id="subTitle">Census &amp; Revenue Analytics</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="btn gold menu-btn" id="btnMenu">☰ Filters</button>
+    <button class="btn" id="btnExport">⬇ Export CSV</button>
+    <button class="btn btn-lock" id="btnLock" title="Sign out">🔒 Lock</button>
+    <button class="btn" id="btnPrint">🖨 Print / PDF</button>
+  </div>
+</header>
+
+<div class="layout">
+<aside>
+  <div class="filter-head">
+    <h2>🔍 Filters</h2>
+    <button class="reset" id="resetAll">Reset all</button>
+  </div>
+
+  <div class="filter-group" data-group="yr">
+    <div class="fg-head"><span>📅 Year <span class="count" id="cnt-yr"></span></span><span class="caret">▼</span></div>
+    <div class="fg-body">
+      <div class="fg-actions">
+        <button class="fg-mini" data-act="all" data-f="yr">All</button>
+        <button class="fg-mini" data-act="none" data-f="yr">None</button>
+      </div>
+      <div class="chk-list" id="list-yr"></div>
+    </div>
+  </div>
+
+  <div class="filter-group" data-group="mo">
+    <div class="fg-head"><span>📆 Months <span class="count" id="cnt-mo"></span></span><span class="caret">▼</span></div>
+    <div class="fg-body">
+      <div class="fg-actions">
+        <button class="fg-mini" data-act="all" data-f="mo">All</button>
+        <button class="fg-mini" data-act="none" data-f="mo">None</button>
+      </div>
+      <div class="chk-list" id="list-mo"></div>
+    </div>
+  </div>
+
+  <div class="filter-group" data-group="lg">
+    <div class="fg-head"><span>🏥 Location Groups <span class="count" id="cnt-lg"></span></span><span class="caret">▼</span></div>
+    <div class="fg-body">
+      <input type="text" class="fg-search" id="search-lg" placeholder="Search groups…">
+      <div class="fg-actions">
+        <button class="fg-mini" data-act="all" data-f="lg">All</button>
+        <button class="fg-mini" data-act="none" data-f="lg">None</button>
+      </div>
+      <div class="chk-list tall" id="list-lg"></div>
+    </div>
+  </div>
+
+  <div class="filter-group" data-group="loc">
+    <div class="fg-head collapsed"><span>🩺 Locations <span class="count" id="cnt-loc"></span></span><span class="caret">▼</span></div>
+    <div class="fg-body hidden">
+      <input type="text" class="fg-search" id="search-loc" placeholder="Search locations…">
+      <div class="fg-actions">
+        <button class="fg-mini" data-act="all" data-f="loc">All visible</button>
+        <button class="fg-mini" data-act="none" data-f="loc">None</button>
+      </div>
+      <div class="chk-list tall" id="list-loc"></div>
+    </div>
+  </div>
+
+  <div class="filter-group" data-group="cp">
+    <div class="fg-head collapsed"><span>👨‍⚕️ Care Providers <span class="count" id="cnt-cp"></span></span><span class="caret">▼</span></div>
+    <div class="fg-body hidden">
+      <input type="text" class="fg-search" id="search-cp" placeholder="Search providers…">
+      <div class="fg-actions">
+        <button class="fg-mini" data-act="all" data-f="cp">All visible</button>
+        <button class="fg-mini" data-act="none" data-f="cp">None</button>
+      </div>
+      <div class="chk-list tall" id="list-cp"></div>
+    </div>
+  </div>
+
+  <div class="filter-group" data-group="pay">
+    <div class="fg-head collapsed"><span>💳 Payors <span class="count" id="cnt-pay"></span></span><span class="caret">▼</span></div>
+    <div class="fg-body hidden">
+      <input type="text" class="fg-search" id="search-pay" placeholder="Search payors…">
+      <div class="fg-actions">
+        <button class="fg-mini" data-act="all" data-f="pay">All</button>
+        <button class="fg-mini" data-act="none" data-f="pay">None</button>
+      </div>
+      <div class="chk-list tall" id="list-pay"></div>
+    </div>
+  </div>
+  <button class="drawer-close" id="btnApply">✓ Show results</button>
+</aside>
+
+<main>
+  <div class="status-bar">
+    <div><strong id="scopeText">All data</strong> · <span id="rowCount"></span></div>
+    <div class="status-chips" id="scopeChips"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="overview">📊 Overview</button>
+    <button class="tab" data-tab="trends">📈 Trends &amp; Periods</button>
+    <button class="tab" data-tab="groups">🏥 Location Groups</button>
+    <button class="tab" data-tab="locations">🩺 Locations</button>
+    <button class="tab" data-tab="providers">👨‍⚕️ Care Providers</button>
+    <button class="tab" data-tab="payors">💳 Payors</button>
+    <button class="tab" data-tab="insights">💡 Insights &amp; Findings</button>
+  </div>
+
+  <section id="overview" class="section active">
+    <div id="kpiRow" class="kpi-grid"></div>
+    <div class="grid charts-grid">
+      <div class="card"><h3>Revenue Mix (OP vs IP) <span class="badge" id="rmBadge"></span></h3>
+        <div class="chart-container"><canvas id="chRevMix"></canvas></div></div>
+      <div class="card"><h3>Census Mix (OP vs IP) <span class="badge" id="cmBadge"></span></h3>
+        <div class="chart-container"><canvas id="chCensusMix"></canvas></div></div>
+      <div class="card"><h3>Period Comparison — Key Metrics</h3>
+        <div class="chart-container"><canvas id="chYoY"></canvas></div></div>
+      <div class="card"><h3>Monthly Revenue Trend</h3>
+        <div class="chart-container"><canvas id="chMonthRev"></canvas></div></div>
+    </div>
+    <div class="grid charts-grid" style="margin-top:12px">
+      <div class="card"><h3>Top 10 Location Groups by Net Revenue</h3>
+        <div class="chart-container tall"><canvas id="chTopLG"></canvas></div></div>
+      <div class="card"><h3>CPV &amp; CPM (Charge per Visit / Patient)</h3>
+        <div class="chart-container tall"><canvas id="chCPVCPM"></canvas></div></div>
+    </div>
+  </section>
+
+  <section id="trends" class="section">
+    <div class="card" style="margin-bottom:12px">
+      <h3>Metric to track</h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px" id="trendPills"></div>
+    </div>
+    <div class="grid charts-grid">
+      <div class="card" style="grid-column:1/-1"><h3>Monthly Trend — Period Comparison</h3>
+        <div class="chart-container tall"><canvas id="chTrendMain"></canvas></div></div>
+      <div class="card"><h3>Monthly OP vs IP Revenue</h3>
+        <div class="chart-container tall"><canvas id="chMonthMix"></canvas></div></div>
+      <div class="card"><h3>Monthly OP vs IP Census</h3>
+        <div class="chart-container tall"><canvas id="chMonthCensusMix"></canvas></div></div>
+      <div class="card"><h3>MoM % Growth — Net Revenue</h3>
+        <div class="chart-container"><canvas id="chMoMRev"></canvas></div></div>
+      <div class="card"><h3>MoM % Growth — Total Census</h3>
+        <div class="chart-container"><canvas id="chMoMCensus"></canvas></div></div>
+    </div>
+  </section>
+
+  <section id="groups" class="section">
+    <div class="card" style="margin-bottom:12px">
+      <h3>Metric to rank by</h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px" id="groupPills"></div>
+    </div>
+    <div class="grid charts-grid">
+      <div class="card" style="grid-column:1/-1"><h3>Location Groups Ranking <span class="badge" id="lgBadge"></span></h3>
+        <div class="chart-container xtall"><canvas id="chLG"></canvas></div></div>
+      <div class="card"><h3>Revenue Share by Location Group</h3>
+        <div class="chart-container tall"><canvas id="chLGDonut"></canvas></div></div>
+      <div class="card"><h3>Census vs Revenue (Bubble)</h3>
+        <div class="chart-container tall"><canvas id="chLGScatter"></canvas></div></div>
+    </div>
+    <div class="card" style="margin-top:12px"><h3>Detailed Table</h3>
+      <div class="scroll"><table id="tblLG"></table></div></div>
+  </section>
+
+  <section id="locations" class="section">
+    <div class="card"><h3>Top 20 Locations <span class="badge" id="locBadge"></span></h3>
+      <div class="chart-container xtall"><canvas id="chLoc"></canvas></div></div>
+    <div class="card" style="margin-top:12px"><h3>All Locations — Detailed Table</h3>
+      <div class="scroll" style="max-height:600px"><table id="tblLoc"></table></div></div>
+  </section>
+
+  <section id="providers" class="section">
+    <div class="card"><h3>Top 20 Care Providers <span class="badge" id="provBadge"></span></h3>
+      <div class="chart-container xtall"><canvas id="chProv"></canvas></div></div>
+    <div class="card" style="margin-top:12px"><h3>All Care Providers — Detailed Table</h3>
+      <div class="scroll" style="max-height:600px"><table id="tblProv"></table></div></div>
+  </section>
+
+  <section id="payors" class="section">
+    <div class="grid charts-grid">
+      <div class="card"><h3>Top 15 Payors by Revenue <span class="badge" id="payBadge"></span></h3>
+        <div class="chart-container xtall"><canvas id="chPay"></canvas></div></div>
+      <div class="card"><h3>Payor Revenue Share</h3>
+        <div class="chart-container xtall"><canvas id="chPayDonut"></canvas></div></div>
+    </div>
+    <div class="card" style="margin-top:12px"><h3>All Payors — Detailed Table</h3>
+      <div class="scroll" style="max-height:600px"><table id="tblPay"></table></div></div>
+  </section>
+
+  <section id="insights" class="section">
+    <div class="insights"><h3>📌 Executive Summary</h3><div id="execSummary"></div></div>
+    <div class="insights"><h3>📈 Growth &amp; Trends</h3><div id="trendInsights"></div></div>
+    <div class="insights"><h3>🏥 Specialty Performance</h3><div id="specInsights"></div></div>
+    <div class="insights"><h3>💳 Payor Concentration</h3><div id="payInsights"></div></div>
+    <div class="insights"><h3>👨‍⚕️ Provider Highlights</h3><div id="provInsights"></div></div>
+    <div class="insights"><h3>⚠️ Risks &amp; Recommendations</h3><div id="recoInsights"></div></div>
+  </section>
+
+  <div class="footer">
+    <img src="logo.webp" alt="IMC">
+    International Medical Center · Executive Dashboard · <span id="dataAsOf"></span> · Metrics follow IMC formulas:
+    CPV = Revenue ÷ Census · CPM = Revenue ÷ Unique Patients
+  </div>
+</main>
+</div>
+<script>
+const MONTH_ORDER=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function start(DATA){
+document.getElementById('loader').style.display='none';
+
+// Column indices in each row of DATA.rows
+const C = {Y:0, M:1, LG:2, LOC:3, CP:4, PAY:5,
+           NR:6, OR:7, OC:8, OP:9, IR:10, IC:11, IP:12, TC:13};
+
+const MONTHS = DATA.months;
+const YEARS = [...new Set(DATA.rows.map(r=>r[0]))].sort();
+
+// IMC-themed palette
+const IMC_COLORS = {
+  primary:'#0E356A', secondary:'#1B5894', tertiary:'#2E6FB0', light:'#6F9FD3', softer:'#B5CDE8',
+  gold:'#C9A24B', pos:'#1E8E6B', neg:'#CF3754', warn:'#D98B16',
+  op:'#1E8E6B', ip:'#7A4FBF'
+};
+const PALETTE = ['#0E356A','#1B5894','#2E6FB0','#6F9FD3','#C9A24B','#1E8E6B','#7A4FBF','#D98B16',
+                 '#CF3754','#4EB3B8','#8B5CF6','#F59E0B','#065F46','#B45309','#1E40AF','#9333EA',
+                 '#DC2626','#059669','#7C3AED','#D97706','#1D4ED8','#166534','#991B1B'];
+
+Chart.defaults.color = '#415778';
+Chart.defaults.borderColor = '#DCE4F0';
+Chart.defaults.font.family = "-apple-system,'Segoe UI',Roboto,Arial";
+Chart.defaults.font.size = 11.5;
+
+// ----------- FORMATTING
+const fmtMoney = v=>{if(v==null||isNaN(v))return'—';const a=Math.abs(v);
+  if(a>=1e9)return(v/1e9).toFixed(2)+'B';if(a>=1e6)return(v/1e6).toFixed(2)+'M';
+  if(a>=1e3)return(v/1e3).toFixed(1)+'K';return v.toFixed(0)};
+const fmtNum = v=>(v==null||isNaN(v))?'—':Math.round(v).toLocaleString();
+const fmtDec = v=>(v==null||isNaN(v))?'—':v.toLocaleString(undefined,{maximumFractionDigits:2});
+const fmtPct = v=>(v==null||isNaN(v))?'—':(v>=0?'+':'')+v.toFixed(1)+'%';
+
+const METRIC_LABEL = {
+  netRev:'Net Revenue (SAR)', opRev:'OP Revenue (SAR)', ipRev:'IP Revenue (SAR)',
+  totalCensus:'Total Census', opCensus:'OP Census', ipCensus:'IP Census',
+  opPatients:'OP Unique Patients', ipPatients:'IP Unique Patients',
+  opCPV:'OP CPV (SAR/Visit)', opCPM:'OP CPM (SAR/Patient)',
+  ipCPV:'IP CPV (SAR/Visit)', ipCPM:'IP CPM (SAR/Patient)'
+};
+const METRIC_SHORT = {
+  netRev:'Net Rev', opRev:'OP Rev', ipRev:'IP Rev',
+  totalCensus:'Tot Census', opCensus:'OP Census', ipCensus:'IP Census',
+  opPatients:'OP Patients', ipPatients:'IP Patients',
+  opCPV:'OP CPV', opCPM:'OP CPM', ipCPV:'IP CPV', ipCPM:'IP CPM'
+};
+const isMoney = m => ['netRev','opRev','ipRev','opCPV','opCPM','ipCPV','ipCPM'].includes(m);
+const fmtMetric = (m,v) => isMoney(m) ? fmtMoney(v) : fmtNum(v);
+
+// ----------- FILTER STATE (sets of indices)
+const F = {
+  yrs: new Set(YEARS),
+  mo:  new Set(MONTHS.map((_,i)=>i)),
+  lg:  new Set(DATA.locationGroups.map((_,i)=>i)),
+  loc: new Set(DATA.locations.map((_,i)=>i)),
+  cp:  new Set(DATA.careProviders.map((_,i)=>i)),
+  pay: new Set(DATA.payors.map((_,i)=>i)),
+};
+
+// ----------- BUILD FILTER UI
+function buildCheckList(containerId, items, keyName, labelFn){
+  const el = document.getElementById(containerId);
+  el.innerHTML = items.map((name,i)=>{
+    const id = `${keyName}-${i}`;
+    return `<label class="chk" data-idx="${i}" data-name="${name.toString().toLowerCase().replace(/"/g,'')}">
+      <input type="checkbox" id="${id}" data-key="${keyName}" data-val="${i}" checked>
+      <span title="${name}">${labelFn?labelFn(name,i):name}</span></label>`;
+  }).join('');
+  // delegate change
+  el.addEventListener('change', e=>{
+    if (e.target.type==='checkbox') {
+      const key = e.target.dataset.key, v = e.target.dataset.val;
+      const set = F[key];
+      const value = (key==='yrs') ? parseInt(v) : parseInt(v);
+      if (e.target.checked) set.add(value); else set.delete(value);
+      // cascade: when LG changes, limit visible loc/cp
+      if (key==='lg') refreshCascading();
+      updateCounts();
+      renderAll();
+    }
+  });
+}
+
+function labelLG(name,i){
+  return `${name}`;
+}
+function labelLoc(name,i){
+  const lgI = DATA.locToLg[i];
+  const lgName = lgI!=null ? DATA.locationGroups[lgI] : '';
+  return `${name} <span style="color:#6B7E9B;font-size:10.5px">· ${lgName.slice(0,18)}</span>`;
+}
+function labelCP(name,i){
+  const lgI = DATA.cpToLg[i];
+  const lgName = lgI!=null ? DATA.locationGroups[lgI] : '';
+  return `${name} <span style="color:#6B7E9B;font-size:10.5px">· ${lgName.slice(0,18)}</span>`;
+}
+
+// Build year as integer values
+(function(){
+  const el = document.getElementById('list-yr');
+  el.innerHTML = YEARS.map((y,i)=>`<label class="chk"><input type="checkbox" data-key="yrs" data-val="${y}" checked><span>${y}</span></label>`).join('');
+  el.addEventListener('change', e=>{
+    if (e.target.type==='checkbox'){
+      const v=parseInt(e.target.dataset.val);
+      if (e.target.checked) F.yrs.add(v); else F.yrs.delete(v);
+      updateCounts(); renderAll();
+    }
+  });
+})();
+buildCheckList('list-mo', MONTHS, 'mo');
+buildCheckList('list-lg', DATA.locationGroups, 'lg', labelLG);
+buildCheckList('list-loc', DATA.locations, 'loc', labelLoc);
+buildCheckList('list-cp', DATA.careProviders, 'cp', labelCP);
+buildCheckList('list-pay', DATA.payors, 'pay');
+
+// Cascade: when LG filter changes, visually disable loc/cp outside selected LGs
+function refreshCascading(){
+  const activeLGs = F.lg;
+  document.querySelectorAll('#list-loc .chk').forEach(el=>{
+    const idx = parseInt(el.dataset.idx);
+    const lgI = DATA.locToLg[idx];
+    const show = activeLGs.has(lgI);
+    el.style.display = show ? '' : 'none';
+  });
+  document.querySelectorAll('#list-cp .chk').forEach(el=>{
+    const idx = parseInt(el.dataset.idx);
+    const lgI = DATA.cpToLg[idx];
+    const show = activeLGs.has(lgI);
+    el.style.display = show ? '' : 'none';
+  });
+}
+
+// Collapse / expand
+document.querySelectorAll('.fg-head').forEach(h=>{
+  h.onclick = ()=>{
+    h.classList.toggle('collapsed');
+    h.nextElementSibling.classList.toggle('hidden');
+  };
+});
+
+// Select All / None mini buttons
+document.querySelectorAll('.fg-mini').forEach(b=>{
+  b.onclick = (e)=>{
+    e.stopPropagation();
+    const act = b.dataset.act, key = b.dataset.f;
+    const listId = `list-${key}`;
+    const checks = document.querySelectorAll(`#${listId} .chk`);
+    checks.forEach(ch=>{
+      if (ch.style.display==='none') return; // skip hidden (cascaded)
+      const cb = ch.querySelector('input');
+      cb.checked = (act==='all');
+      const v = (key==='yrs') ? parseInt(cb.dataset.val) : parseInt(cb.dataset.val);
+      const setKey = key==='yrs'?'yrs':key;
+      if (act==='all') F[setKey].add(v); else F[setKey].delete(v);
+    });
+    if (key==='lg') refreshCascading();
+    updateCounts(); renderAll();
+  };
+});
+
+// Search within each filter list
+['lg','loc','cp','pay'].forEach(key=>{
+  const inp = document.getElementById('search-'+key);
+  if (!inp) return;
+  inp.oninput = ()=>{
+    const q = inp.value.toLowerCase();
+    document.querySelectorAll(`#list-${key} .chk`).forEach(el=>{
+      // If cascading hides it, keep hidden
+      if (el.style.display==='none' && (key==='loc'||key==='cp')) return;
+      const name = el.dataset.name || '';
+      el.style.display = (!q || name.includes(q)) ? '' : 'none';
+    });
+  };
+});
+
+// Reset
+document.getElementById('resetAll').onclick = ()=>{
+  F.yrs = new Set(YEARS);
+  F.mo = new Set(MONTHS.map((_,i)=>i));
+  F.lg = new Set(DATA.locationGroups.map((_,i)=>i));
+  F.loc = new Set(DATA.locations.map((_,i)=>i));
+  F.cp = new Set(DATA.careProviders.map((_,i)=>i));
+  F.pay = new Set(DATA.payors.map((_,i)=>i));
+  document.querySelectorAll('aside input[type=checkbox]').forEach(cb=>cb.checked=true);
+  document.querySelectorAll('aside input[type=text]').forEach(i=>i.value='');
+  refreshCascading();
+  updateCounts(); renderAll();
+};
+
+function updateCounts(){
+  document.getElementById('cnt-yr').textContent = `${F.yrs.size}/${YEARS.length}`;
+  document.getElementById('cnt-mo').textContent = `${F.mo.size}/${MONTHS.length}`;
+  document.getElementById('cnt-lg').textContent = `${F.lg.size}/${DATA.locationGroups.length}`;
+  document.getElementById('cnt-loc').textContent = `${F.loc.size}/${DATA.locations.length}`;
+  document.getElementById('cnt-cp').textContent = `${F.cp.size}/${DATA.careProviders.length}`;
+  document.getElementById('cnt-pay').textContent = `${F.pay.size}/${DATA.payors.length}`;
+}
+updateCounts();
+
+// ----------- FILTERING ENGINE
+function filteredRows(){
+  const yrs=F.yrs, mo=F.mo, lg=F.lg, loc=F.loc, cp=F.cp, pay=F.pay;
+  const out = [];
+  const rows = DATA.rows;
+  for (let i=0;i<rows.length;i++){
+    const r = rows[i];
+    if (!yrs.has(r[0])) continue;
+    if (!mo.has(r[1])) continue;
+    if (!lg.has(r[2])) continue;
+    if (!loc.has(r[3])) continue;
+    if (!cp.has(r[4])) continue;
+    if (!pay.has(r[5])) continue;
+    out.push(r);
+  }
+  return out;
+}
+
+// Aggregator: group filtered rows by one or more key-functions, sum metrics, recompute CPV/CPM
+function aggregate(rows, keyFn){
+  const m = new Map();
+  for (const r of rows){
+    const k = keyFn(r);
+    let a = m.get(k);
+    if (!a){ a={netRev:0,opRev:0,ipRev:0,opCensus:0,ipCensus:0,opPatients:0,ipPatients:0,totalCensus:0};
+             m.set(k,a); }
+    a.netRev += r[C.NR]; a.opRev += r[C.OR]; a.ipRev += r[C.IR];
+    a.opCensus += r[C.OC]; a.ipCensus += r[C.IC];
+    a.opPatients += r[C.OP]; a.ipPatients += r[C.IP];
+    a.totalCensus += r[C.TC];
+  }
+  for (const a of m.values()){
+    a.opCPV = a.opCensus>0 ? a.opRev/a.opCensus : 0;
+    a.opCPM = a.opPatients>0 ? a.opRev/a.opPatients : 0;
+    a.ipCPV = a.ipCensus>0 ? a.ipRev/a.ipCensus : 0;
+    a.ipCPM = a.ipPatients>0 ? a.ipRev/a.ipPatients : 0;
+    a.alos = a.ipCensus>0 ? a.ipPatients/a.ipCensus * 2.5 : 0; // approximate; ALOS not stored at leaf
+  }
+  return m;
+}
+// Note: ALOS computed from leaf is unreliable — not shown directly in aggregated views.
+// We'll compute totals by summing then dividing (correct for weighted ratios).
+
+function totalMetrics(rows){
+  const z = {netRev:0,opRev:0,ipRev:0,opCensus:0,ipCensus:0,opPatients:0,ipPatients:0,totalCensus:0};
+  for (const r of rows){
+    z.netRev += r[C.NR]; z.opRev += r[C.OR]; z.ipRev += r[C.IR];
+    z.opCensus += r[C.OC]; z.ipCensus += r[C.IC];
+    z.opPatients += r[C.OP]; z.ipPatients += r[C.IP];
+    z.totalCensus += r[C.TC];
+  }
+  z.opCPV = z.opCensus>0 ? z.opRev/z.opCensus : 0;
+  z.opCPM = z.opPatients>0 ? z.opRev/z.opPatients : 0;
+  z.ipCPV = z.ipCensus>0 ? z.ipRev/z.ipCensus : 0;
+  z.ipCPM = z.ipPatients>0 ? z.ipRev/z.ipPatients : 0;
+  return z;
+}
+
+// ----------- SCOPE STATUS BAR
+function renderStatus(filteredCount){
+  const yrs=[...F.yrs].sort(), mo=[...F.mo].sort();
+  const chips = [];
+  chips.push(`<span class="chip">${yrs.join(' + ') || 'No year'}</span>`);
+  if (F.mo.size < MONTHS.length) chips.push(`<span class="chip">${mo.map(i=>MONTHS[i]).join(', ')}</span>`);
+  if (F.lg.size < DATA.locationGroups.length) chips.push(`<span class="chip">${F.lg.size} Location Groups</span>`);
+  if (F.loc.size < DATA.locations.length) chips.push(`<span class="chip">${F.loc.size} Locations</span>`);
+  if (F.cp.size < DATA.careProviders.length) chips.push(`<span class="chip">${F.cp.size} Providers</span>`);
+  if (F.pay.size < DATA.payors.length) chips.push(`<span class="chip">${F.pay.size} Payors</span>`);
+  document.getElementById('scopeChips').innerHTML = chips.join('');
+  document.getElementById('scopeText').textContent = F.yrs.size===YEARS.length && F.mo.size===MONTHS.length ? 'All data' : 'Filtered scope';
+  document.getElementById('rowCount').textContent = `${filteredCount.toLocaleString()} rows in scope`;
+  const n=lflNote(filteredRows()); if(n) document.getElementById('scopeChips').innerHTML += `<span class="chip" style="background:#FFF1D6;color:#8A5A00">⚖ ${n}</span>`;
+}
+
+// Compare mode: 2 years selected
+function isYoYMode(){ return F.yrs.size === 2; }
+// Like-for-like: in YoY mode keep only months that exist in BOTH years
+function lfl(rows){
+  if (!isYoYMode()) return rows;
+  const [y1,y2]=[...F.yrs].sort();
+  const m1=new Set(), m2=new Set();
+  for (const r of rows){ if(r[0]===y1) m1.add(r[1]); else if(r[0]===y2) m2.add(r[1]); }
+  const common=new Set([...m1].filter(m=>m2.has(m)));
+  if (common.size===m1.size && common.size===m2.size) return rows;
+  return rows.filter(r=>common.has(r[1]));
+}
+function lflNote(rows){
+  if (!isYoYMode()) return '';
+  const a=lfl(rows); if (a.length===rows.length) return '';
+  const ms=[...new Set(a.map(r=>r[1]))].sort((x,y)=>x-y).map(i=>MONTHS[i]);
+  return `YoY compares like-for-like months only (${ms[0]}–${ms[ms.length-1]}), as the latest month exists in one year only`;
+}
+
+// ----------- RENDER KPIS
+let activeMetricTrend = 'netRev';
+let activeMetricGroup = 'netRev';
+
+function renderKPIs(rows){
+  const yrs = [...F.yrs].sort();
+  const container = document.getElementById('kpiRow');
+  if (rows.length === 0){ container.innerHTML = '<div class="card">No data for current filter selection.</div>'; return; }
+
+  if (isYoYMode()){
+    const [y1,y2] = yrs;
+    const L = lfl(rows);
+    const r1 = L.filter(r=>r[0]===y1), r2 = L.filter(r=>r[0]===y2);
+    const m1 = totalMetrics(r1), m2 = totalMetrics(r2);
+    const d = (a,b) => b>0 ? ((a-b)/b)*100 : 0;
+    const kpi = (lbl,v1,v2,fmt,cls='') => {
+      const delta = d(v2,v1);
+      const cl = delta>=0?'up':'down';
+      return `<div class="kpi ${cls}"><div class="label">${lbl}</div>
+        <div class="value">${fmt(v2)}</div>
+        <div class="sub2">${y1}: ${fmt(v1)}</div>
+        <div class="delta ${cl}">${fmtPct(delta)} YoY</div></div>`;
+    };
+    container.innerHTML =
+      kpi('Net Revenue', m1.netRev, m2.netRev, fmtMoney, 'rev') +
+      kpi('OP Revenue', m1.opRev, m2.opRev, fmtMoney, 'op') +
+      kpi('IP Revenue', m1.ipRev, m2.ipRev, fmtMoney, 'ip') +
+      kpi('Total Census', m1.totalCensus, m2.totalCensus, fmtNum) +
+      kpi('OP Census', m1.opCensus, m2.opCensus, fmtNum, 'op') +
+      kpi('IP Census', m1.ipCensus, m2.ipCensus, fmtNum, 'ip') +
+      kpi('OP Unique Patients', m1.opPatients, m2.opPatients, fmtNum, 'pat') +
+      kpi('IP Unique Patients', m1.ipPatients, m2.ipPatients, fmtNum, 'pat') +
+      kpi('OP CPV', m1.opCPV, m2.opCPV, fmtMoney) +
+      kpi('OP CPM', m1.opCPM, m2.opCPM, fmtMoney) +
+      kpi('IP CPV', m1.ipCPV, m2.ipCPV, fmtMoney) +
+      kpi('IP CPM', m1.ipCPM, m2.ipCPM, fmtMoney);
+  } else {
+    const m = totalMetrics(rows);
+    const kpi = (lbl,v,fmt,cls='') =>
+      `<div class="kpi ${cls}"><div class="label">${lbl}</div><div class="value">${fmt(v)}</div></div>`;
+    container.innerHTML =
+      kpi('Net Revenue', m.netRev, fmtMoney, 'rev') +
+      kpi('OP Revenue', m.opRev, fmtMoney, 'op') +
+      kpi('IP Revenue', m.ipRev, fmtMoney, 'ip') +
+      kpi('Total Census', m.totalCensus, fmtNum) +
+      kpi('OP Census', m.opCensus, fmtNum, 'op') +
+      kpi('IP Census', m.ipCensus, fmtNum, 'ip') +
+      kpi('OP Unique Patients', m.opPatients, fmtNum, 'pat') +
+      kpi('IP Unique Patients', m.ipPatients, fmtNum, 'pat') +
+      kpi('OP CPV', m.opCPV, fmtMoney) +
+      kpi('OP CPM', m.opCPM, fmtMoney) +
+      kpi('IP CPV', m.ipCPV, fmtMoney) +
+      kpi('IP CPM', m.ipCPM, fmtMoney);
+  }
+}
+
+// Chart lifecycle
+const charts = {};
+function destroy(id){ if(charts[id]){charts[id].destroy(); delete charts[id];} }
+
+// ----------- OVERVIEW
+function renderOverview(rows){
+  const yrs = [...F.yrs].sort();
+  const scope = yrs.join('+');
+  document.getElementById('rmBadge').textContent = scope;
+  document.getElementById('cmBadge').textContent = scope;
+
+  // Revenue mix / Census mix (totals in current scope)
+  const m = totalMetrics(rows);
+  destroy('chRevMix');
+  charts.chRevMix = new Chart(document.getElementById('chRevMix'),{
+    type:'doughnut',
+    data:{labels:['OP Revenue','IP Revenue'],
+          datasets:[{data:[m.opRev,m.ipRev],backgroundColor:[IMC_COLORS.op,IMC_COLORS.ip],borderWidth:0}]},
+    options:{plugins:{legend:{position:'bottom'},
+             tooltip:{callbacks:{label:c=>{const t=m.opRev+m.ipRev;return c.label+': '+fmtMoney(c.raw)+' ('+(c.raw/t*100).toFixed(1)+'%)';}}}},
+             maintainAspectRatio:false}
+  });
+  destroy('chCensusMix');
+  charts.chCensusMix = new Chart(document.getElementById('chCensusMix'),{
+    type:'doughnut',
+    data:{labels:['OP Census','IP Census'],
+          datasets:[{data:[m.opCensus,m.ipCensus],backgroundColor:[IMC_COLORS.op,IMC_COLORS.ip],borderWidth:0}]},
+    options:{plugins:{legend:{position:'bottom'},
+             tooltip:{callbacks:{label:c=>{const t=m.opCensus+m.ipCensus;return c.label+': '+fmtNum(c.raw)+' ('+(c.raw/t*100).toFixed(1)+'%)';}}}},
+             maintainAspectRatio:false}
+  });
+
+  // Period comparison (YoY if 2 years, else bars per selected years)
+  destroy('chYoY');
+  const perYr = yrs.map(y=>totalMetrics(lfl(rows).filter(r=>r[0]===y)));
+  const metricLabels = ['Net Rev (M)','OP Rev (M)','IP Rev (M)','Tot Census (K)','OP Patients (K)','IP Patients'];
+  const colorsYr = [IMC_COLORS.primary, IMC_COLORS.gold, IMC_COLORS.light, IMC_COLORS.pos];
+  charts.chYoY = new Chart(document.getElementById('chYoY'),{
+    type:'bar',
+    data:{labels:metricLabels,
+          datasets:perYr.map((pm,i)=>({
+            label:String(yrs[i]),
+            data:[pm.netRev/1e6,pm.opRev/1e6,pm.ipRev/1e6,pm.totalCensus/1e3,pm.opPatients/1e3,pm.ipPatients],
+            backgroundColor:colorsYr[i%colorsYr.length]
+          }))},
+    options:{plugins:{legend:{position:'bottom'}},
+             scales:{y:{beginAtZero:true}},maintainAspectRatio:false}
+  });
+
+  // Monthly revenue trend (per year)
+  destroy('chMonthRev');
+  const monthlyRev = yrs.map(y => {
+    const yr = rows.filter(r=>r[0]===y);
+    return MONTHS.map((_,mi)=> yr.filter(r=>r[1]===mi).reduce((s,r)=>s+r[C.NR],0));
+  });
+  charts.chMonthRev = new Chart(document.getElementById('chMonthRev'),{
+    type:'line',
+    data:{labels:MONTHS,
+          datasets:yrs.map((y,i)=>({
+            label:`${y} Net Revenue (M)`,
+            data:monthlyRev[i].map(v=>v? v/1e6 : null),
+            borderColor:colorsYr[i%colorsYr.length],
+            backgroundColor:colorsYr[i%colorsYr.length]+'22',
+            fill:true,tension:.3,borderWidth:2.5
+          }))},
+    options:{plugins:{legend:{position:'bottom'},
+             tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.raw.toFixed(1)+'M SAR'}}},
+             scales:{y:{beginAtZero:true,title:{display:true,text:'SAR (Millions)'}}},maintainAspectRatio:false}
+  });
+
+  // Top 10 Location Groups by Net Revenue
+  const byLG = aggregate(rows, r=>r[C.LG]);
+  const topLG = [...byLG.entries()].map(([k,v])=>({name:DATA.locationGroups[k],...v}))
+                .sort((a,b)=>b.netRev-a.netRev).slice(0,10);
+  destroy('chTopLG');
+  charts.chTopLG = new Chart(document.getElementById('chTopLG'),{
+    type:'bar',
+    data:{labels:topLG.map(x=>x.name),
+          datasets:[
+            {label:'Net Revenue (M SAR)',data:topLG.map(x=>x.netRev/1e6),
+             backgroundColor:IMC_COLORS.primary,yAxisID:'y'},
+            {label:'Total Census (K)',data:topLG.map(x=>x.totalCensus/1e3),
+             backgroundColor:IMC_COLORS.gold,yAxisID:'y1',type:'line',borderColor:IMC_COLORS.gold,
+             tension:.3,fill:false,pointRadius:4}
+          ]},
+    options:{indexAxis:'y',plugins:{legend:{position:'bottom'}},
+             scales:{y:{ticks:{font:{size:10.5}}},x:{beginAtZero:true}},maintainAspectRatio:false}
+  });
+
+  // CPV/CPM
+  destroy('chCPVCPM');
+  charts.chCPVCPM = new Chart(document.getElementById('chCPVCPM'),{
+    type:'bar',
+    data:{labels:['OP CPV','OP CPM','IP CPV','IP CPM'],
+          datasets:perYr.map((pm,i)=>({
+            label:String(yrs[i]),
+            data:[pm.opCPV,pm.opCPM,pm.ipCPV,pm.ipCPM],
+            backgroundColor:colorsYr[i%colorsYr.length]
+          }))},
+    options:{plugins:{legend:{position:'bottom'},
+             tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtMoney(c.raw)+' SAR'}}},
+             scales:{y:{beginAtZero:true,title:{display:true,text:'SAR'}}},maintainAspectRatio:false}
+  });
+}
+
+// ----------- TRENDS
+function buildTrendPills(){
+  const metrics = ['netRev','totalCensus','opCensus','ipCensus','opCPV','opCPM','ipCPV','ipCPM','opRev','ipRev'];
+  const el = document.getElementById('trendPills');
+  el.innerHTML = metrics.map(m=>`<button class="btn" data-trend="${m}" style="padding:5px 10px;font-size:11.5px;background:${m===activeMetricTrend?'linear-gradient(135deg,#0E356A,#1B5894)':'#F9FBFE'};color:${m===activeMetricTrend?'#fff':'#415778'};border:1px solid ${m===activeMetricTrend?'#0E356A':'#DCE4F0'}">${METRIC_SHORT[m]}</button>`).join('');
+  el.querySelectorAll('button').forEach(b=>{
+    b.onclick=()=>{activeMetricTrend=b.dataset.trend; buildTrendPills(); renderAll();};
+  });
+}
+function buildGroupPills(){
+  const metrics = ['netRev','opRev','ipRev','totalCensus','opCensus','ipCensus','opPatients','ipPatients','opCPV','opCPM','ipCPV','ipCPM'];
+  const el = document.getElementById('groupPills');
+  el.innerHTML = metrics.map(m=>`<button class="btn" data-g="${m}" style="padding:5px 10px;font-size:11.5px;background:${m===activeMetricGroup?'linear-gradient(135deg,#0E356A,#1B5894)':'#F9FBFE'};color:${m===activeMetricGroup?'#fff':'#415778'};border:1px solid ${m===activeMetricGroup?'#0E356A':'#DCE4F0'}">${METRIC_SHORT[m]}</button>`).join('');
+  el.querySelectorAll('button').forEach(b=>{
+    b.onclick=()=>{activeMetricGroup=b.dataset.g; buildGroupPills(); renderAll();};
+  });
+}
+
+function metricFromRows(rows, metric){
+  const m = totalMetrics(rows);
+  return m[metric] || 0;
+}
+
+function renderTrends(rows){
+  const yrs = [...F.yrs].sort();
+  const met = activeMetricTrend;
+  const colorsYr = [IMC_COLORS.primary, IMC_COLORS.gold, IMC_COLORS.light, IMC_COLORS.pos];
+  const isCPV = ['opCPV','opCPM','ipCPV','ipCPM'].includes(met);
+  const scale = isMoney(met) && !isCPV ? 1e6 : 1;
+  const unit = isMoney(met)&&!isCPV ? ' (M SAR)' : (isCPV ? ' SAR' : '');
+
+  // monthly per year for selected metric
+  destroy('chTrendMain');
+  const monthly = yrs.map(y=>{
+    return MONTHS.map((_,mi)=>{
+      const sub = rows.filter(r=>r[0]===y && r[1]===mi);
+      return sub.length ? metricFromRows(sub, met) / scale : null;
+    });
+  });
+  charts.chTrendMain = new Chart(document.getElementById('chTrendMain'),{
+    type:'line',
+    data:{labels:MONTHS,
+          datasets:yrs.map((y,i)=>({
+            label:`${y}${unit}`,
+            data:monthly[i],
+            borderColor:colorsYr[i%colorsYr.length],
+            backgroundColor:colorsYr[i%colorsYr.length]+'22',
+            fill:true,tension:.3,borderWidth:2.5,spanGaps:false
+          }))},
+    options:{plugins:{legend:{position:'bottom'},title:{display:true,text:METRIC_LABEL[met]}},
+             scales:{y:{beginAtZero:!isCPV}},maintainAspectRatio:false}
+  });
+
+  // Stacked OP vs IP revenue - all selected years side by side (grouped stacks)
+  destroy('chMonthMix');
+  // For each year, each month: OP + IP revenue (stacked)
+  const datasetsRev = [];
+  yrs.forEach((y,yi)=>{
+    const opColor = yi===0?IMC_COLORS.op:(yi===1?'#5EB58F':'#A6CFBB');
+    const ipColor = yi===0?IMC_COLORS.ip:(yi===1?'#A17FD9':'#C8B4EC');
+    datasetsRev.push({label:`${y} OP (M)`, stack:`s${yi}`,
+      data:MONTHS.map((_,mi)=>rows.filter(r=>r[0]===y&&r[1]===mi).reduce((s,r)=>s+r[C.OR],0)/1e6),
+      backgroundColor:opColor});
+    datasetsRev.push({label:`${y} IP (M)`, stack:`s${yi}`,
+      data:MONTHS.map((_,mi)=>rows.filter(r=>r[0]===y&&r[1]===mi).reduce((s,r)=>s+r[C.IR],0)/1e6),
+      backgroundColor:ipColor});
+  });
+  charts.chMonthMix = new Chart(document.getElementById('chMonthMix'),{
+    type:'bar',
+    data:{labels:MONTHS, datasets:datasetsRev},
+    options:{plugins:{legend:{position:'bottom'}},
+             scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true,title:{display:true,text:'SAR (M)'}}},
+             maintainAspectRatio:false}
+  });
+
+  destroy('chMonthCensusMix');
+  const datasetsCen = [];
+  yrs.forEach((y,yi)=>{
+    const opColor = yi===0?IMC_COLORS.op:(yi===1?'#5EB58F':'#A6CFBB');
+    const ipColor = yi===0?IMC_COLORS.ip:(yi===1?'#A17FD9':'#C8B4EC');
+    datasetsCen.push({label:`${y} OP Census`, stack:`s${yi}`,
+      data:MONTHS.map((_,mi)=>rows.filter(r=>r[0]===y&&r[1]===mi).reduce((s,r)=>s+r[C.OC],0)),
+      backgroundColor:opColor});
+    datasetsCen.push({label:`${y} IP Census`, stack:`s${yi}`,
+      data:MONTHS.map((_,mi)=>rows.filter(r=>r[0]===y&&r[1]===mi).reduce((s,r)=>s+r[C.IC],0)),
+      backgroundColor:ipColor});
+  });
+  charts.chMonthCensusMix = new Chart(document.getElementById('chMonthCensusMix'),{
+    type:'bar',
+    data:{labels:MONTHS, datasets:datasetsCen},
+    options:{plugins:{legend:{position:'bottom'}},
+             scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}},maintainAspectRatio:false}
+  });
+
+  // MoM % growth
+  const mom = ser => ser.map((v,i)=> i===0?null:(ser[i-1]>0?((v-ser[i-1])/ser[i-1])*100:null));
+  const revByYr = yrs.map(y=>MONTHS.map((_,mi)=>rows.filter(r=>r[0]===y&&r[1]===mi).reduce((s,r)=>s+r[C.NR],0)));
+  const cenByYr = yrs.map(y=>MONTHS.map((_,mi)=>rows.filter(r=>r[0]===y&&r[1]===mi).reduce((s,r)=>s+r[C.TC],0)));
+
+  destroy('chMoMRev');
+  charts.chMoMRev = new Chart(document.getElementById('chMoMRev'),{
+    type:'bar',
+    data:{labels:MONTHS,
+          datasets:yrs.map((y,i)=>({label:`${y} MoM %`,data:mom(revByYr[i]),backgroundColor:colorsYr[i%colorsYr.length]}))},
+    options:{plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtPct(c.raw)}}},
+             scales:{y:{title:{display:true,text:'%'}}},maintainAspectRatio:false}
+  });
+  destroy('chMoMCensus');
+  charts.chMoMCensus = new Chart(document.getElementById('chMoMCensus'),{
+    type:'bar',
+    data:{labels:MONTHS,
+          datasets:yrs.map((y,i)=>({label:`${y} MoM %`,data:mom(cenByYr[i]),backgroundColor:colorsYr[i%colorsYr.length]}))},
+    options:{plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtPct(c.raw)}}},
+             scales:{y:{title:{display:true,text:'%'}}},maintainAspectRatio:false}
+  });
+}
+
+// ----------- GROUPS TAB
+function renderGroups(rows){
+  const yrs = [...F.yrs].sort();
+  const met = activeMetricGroup;
+  document.getElementById('lgBadge').textContent = METRIC_LABEL[met]+' · '+yrs.join('+');
+
+  // Aggregate by LG, optionally per-year if YoY
+  const byLG = aggregate(rows, r=>r[C.LG]);
+  const arr = [...byLG.entries()].map(([k,v])=>({name:DATA.locationGroups[k], ...v}))
+                                 .sort((a,b)=>(b[met]||0)-(a[met]||0));
+
+  destroy('chLG');
+  if (isYoYMode()){
+    const [y1,y2] = yrs;
+    const a1 = aggregate(lfl(rows).filter(r=>r[0]===y1), r=>r[C.LG]);
+    const a2 = aggregate(lfl(rows).filter(r=>r[0]===y2), r=>r[C.LG]);
+    const combo = arr.map(x=>{
+      const i = DATA.locationGroups.indexOf(x.name);
+      return {name:x.name, v1:(a1.get(i)||{})[met]||0, v2:(a2.get(i)||{})[met]||0};
+    });
+    charts.chLG = new Chart(document.getElementById('chLG'),{
+      type:'bar',
+      data:{labels:combo.map(x=>x.name),
+            datasets:[
+              {label:String(y1),data:combo.map(x=>isMoney(met)?x.v1/1e6:x.v1),backgroundColor:IMC_COLORS.primary},
+              {label:String(y2),data:combo.map(x=>isMoney(met)?x.v2/1e6:x.v2),backgroundColor:IMC_COLORS.gold}
+            ]},
+      options:{indexAxis:'y',plugins:{legend:{position:'bottom'},
+               tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtMetric(met,isMoney(met)?c.raw*1e6:c.raw)}}},
+               scales:{x:{beginAtZero:true,title:{display:true,text:isMoney(met)?'SAR (M)':METRIC_LABEL[met]}}},
+               maintainAspectRatio:false}
+    });
+  } else {
+    charts.chLG = new Chart(document.getElementById('chLG'),{
+      type:'bar',
+      data:{labels:arr.map(x=>x.name),
+            datasets:[{label:METRIC_LABEL[met],
+                       data:arr.map(x=>isMoney(met)?x[met]/1e6:x[met]),
+                       backgroundColor:arr.map((_,i)=>PALETTE[i%PALETTE.length])}]},
+      options:{indexAxis:'y',plugins:{legend:{display:false},
+               tooltip:{callbacks:{label:c=>fmtMetric(met,isMoney(met)?c.raw*1e6:c.raw)}}},
+               scales:{x:{beginAtZero:true,title:{display:true,text:isMoney(met)?'SAR (M)':METRIC_LABEL[met]}}},
+               maintainAspectRatio:false}
+    });
+  }
+
+  // Revenue share donut
+  const sortedRev = [...arr].sort((a,b)=>b.netRev-a.netRev);
+  const top10 = sortedRev.slice(0,10);
+  const otherSum = sortedRev.slice(10).reduce((s,x)=>s+x.netRev,0);
+  const dLabels = [...top10.map(x=>x.name), otherSum>0?'Others':null].filter(Boolean);
+  const dValues = [...top10.map(x=>x.netRev), otherSum>0?otherSum:null].filter(x=>x!=null);
+  destroy('chLGDonut');
+  charts.chLGDonut = new Chart(document.getElementById('chLGDonut'),{
+    type:'doughnut',
+    data:{labels:dLabels,
+          datasets:[{data:dValues, backgroundColor:dLabels.map((_,i)=>PALETTE[i%PALETTE.length]), borderWidth:0}]},
+    options:{plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:12}},
+             tooltip:{callbacks:{label:c=>{const t=dValues.reduce((a,b)=>a+b,0);return c.label+': '+fmtMoney(c.raw)+' ('+(c.raw/t*100).toFixed(1)+'%)';}}}},maintainAspectRatio:false}
+  });
+
+  // Bubble: census vs revenue
+  destroy('chLGScatter');
+  const bubData = arr.filter(x=>x.totalCensus>0);
+  charts.chLGScatter = new Chart(document.getElementById('chLGScatter'),{
+    type:'bubble',
+    data:{datasets:bubData.map((x,i)=>({
+      label:x.name,
+      data:[{x:x.totalCensus,y:x.netRev/1e6,r:Math.max(4,Math.min(22,Math.sqrt(x.netRev/1e5)))}],
+      backgroundColor:PALETTE[i%PALETTE.length]+'cc'
+    }))},
+    options:{plugins:{legend:{display:false},
+             tooltip:{callbacks:{label:c=>c.dataset.label+': Census '+fmtNum(c.raw.x)+', Rev '+c.raw.y.toFixed(1)+'M'}}},
+             scales:{x:{title:{display:true,text:'Total Census'},type:'logarithmic'},
+                     y:{title:{display:true,text:'Net Revenue (M SAR)'}}},
+             maintainAspectRatio:false}
+  });
+
+  // Table
+  const t = document.getElementById('tblLG');
+  t.innerHTML = `<thead><tr><th>Location Group</th>
+    <th class="num">Net Rev</th><th class="num">OP Rev</th><th class="num">IP Rev</th>
+    <th class="num">Tot Census</th><th class="num">OP Census</th><th class="num">IP Census</th>
+    <th class="num">OP Patients</th><th class="num">IP Patients</th>
+    <th class="num">OP CPV</th><th class="num">OP CPM</th><th class="num">IP CPV</th><th class="num">IP CPM</th>
+    </tr></thead><tbody>` +
+    arr.map(x=>`<tr><td><strong>${x.name}</strong></td>
+      <td class="num">${fmtMoney(x.netRev)}</td>
+      <td class="num">${fmtMoney(x.opRev)}</td>
+      <td class="num">${fmtMoney(x.ipRev)}</td>
+      <td class="num">${fmtNum(x.totalCensus)}</td>
+      <td class="num">${fmtNum(x.opCensus)}</td>
+      <td class="num">${fmtNum(x.ipCensus)}</td>
+      <td class="num">${fmtNum(x.opPatients)}</td>
+      <td class="num">${fmtNum(x.ipPatients)}</td>
+      <td class="num">${fmtMoney(x.opCPV)}</td>
+      <td class="num">${fmtMoney(x.opCPM)}</td>
+      <td class="num">${fmtMoney(x.ipCPV)}</td>
+      <td class="num">${fmtMoney(x.ipCPM)}</td></tr>`).join('') + '</tbody>';
+}
+
+// ----------- LOCATIONS
+function renderLocations(rows){
+  const yrs = [...F.yrs].sort();
+  const met = activeMetricGroup;
+  document.getElementById('locBadge').textContent = METRIC_LABEL[met]+' · '+yrs.join('+');
+  const byLoc = aggregate(rows, r=>r[C.LOC]);
+  const arr = [...byLoc.entries()].map(([k,v])=>{
+    const lgI = DATA.locToLg[k];
+    return {name:DATA.locations[k], group:lgI!=null?DATA.locationGroups[lgI]:'—', ...v};
+  }).sort((a,b)=>(b[met]||0)-(a[met]||0));
+  const top = arr.slice(0,20);
+
+  destroy('chLoc');
+  charts.chLoc = new Chart(document.getElementById('chLoc'),{
+    type:'bar',
+    data:{labels:top.map(x=>x.name.length>36?x.name.slice(0,33)+'…':x.name),
+          datasets:[{label:METRIC_LABEL[met],
+                     data:top.map(x=>isMoney(met)?x[met]/1e6:x[met]),
+                     backgroundColor:top.map((_,i)=>PALETTE[i%PALETTE.length])}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false},
+             tooltip:{callbacks:{title:c=>top[c[0].dataIndex].name+' ('+top[c[0].dataIndex].group+')',
+                                 label:c=>fmtMetric(met,isMoney(met)?c.raw*1e6:c.raw)}}},
+             scales:{x:{beginAtZero:true}},maintainAspectRatio:false}
+  });
+
+  const t = document.getElementById('tblLoc');
+  t.innerHTML = `<thead><tr><th>Group</th><th>Location</th>
+    <th class="num">Net Rev</th><th class="num">OP Rev</th><th class="num">IP Rev</th>
+    <th class="num">Tot Census</th><th class="num">OP Census</th><th class="num">IP Census</th>
+    <th class="num">OP Patients</th><th class="num">OP CPV</th><th class="num">OP CPM</th>
+    <th class="num">IP CPV</th></tr></thead><tbody>` +
+    arr.map(x=>`<tr><td>${x.group}</td><td><strong>${x.name}</strong></td>
+      <td class="num">${fmtMoney(x.netRev)}</td>
+      <td class="num">${fmtMoney(x.opRev)}</td>
+      <td class="num">${fmtMoney(x.ipRev)}</td>
+      <td class="num">${fmtNum(x.totalCensus)}</td>
+      <td class="num">${fmtNum(x.opCensus)}</td>
+      <td class="num">${fmtNum(x.ipCensus)}</td>
+      <td class="num">${fmtNum(x.opPatients)}</td>
+      <td class="num">${fmtMoney(x.opCPV)}</td>
+      <td class="num">${fmtMoney(x.opCPM)}</td>
+      <td class="num">${fmtMoney(x.ipCPV)}</td></tr>`).join('') + '</tbody>';
+}
+
+// ----------- PROVIDERS
+function renderProviders(rows){
+  const yrs = [...F.yrs].sort();
+  const met = activeMetricGroup;
+  document.getElementById('provBadge').textContent = METRIC_LABEL[met]+' · '+yrs.join('+');
+  const byCP = aggregate(rows, r=>r[C.CP]);
+  const arr = [...byCP.entries()].map(([k,v])=>{
+    const lgI = DATA.cpToLg[k];
+    return {name:DATA.careProviders[k], group:lgI!=null?DATA.locationGroups[lgI]:'—', ...v};
+  }).sort((a,b)=>(b[met]||0)-(a[met]||0));
+  const top = arr.slice(0,20);
+
+  destroy('chProv');
+  charts.chProv = new Chart(document.getElementById('chProv'),{
+    type:'bar',
+    data:{labels:top.map(x=>x.name),
+          datasets:[{label:METRIC_LABEL[met],
+                     data:top.map(x=>isMoney(met)?x[met]/1e6:x[met]),
+                     backgroundColor:top.map((_,i)=>PALETTE[i%PALETTE.length])}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false},
+             tooltip:{callbacks:{title:c=>top[c[0].dataIndex].name+' ('+top[c[0].dataIndex].group+')',
+                                 label:c=>fmtMetric(met,isMoney(met)?c.raw*1e6:c.raw)}}},
+             scales:{x:{beginAtZero:true}},maintainAspectRatio:false}
+  });
+
+  const t = document.getElementById('tblProv');
+  t.innerHTML = `<thead><tr><th>Group</th><th>Care Provider</th>
+    <th class="num">Net Rev</th><th class="num">OP Rev</th><th class="num">IP Rev</th>
+    <th class="num">Tot Census</th><th class="num">OP Patients</th><th class="num">IP Patients</th>
+    <th class="num">OP CPV</th><th class="num">OP CPM</th><th class="num">IP CPV</th></tr></thead><tbody>` +
+    arr.slice(0,600).map(x=>`<tr><td>${x.group}</td><td><strong>${x.name}</strong></td>
+      <td class="num">${fmtMoney(x.netRev)}</td>
+      <td class="num">${fmtMoney(x.opRev)}</td>
+      <td class="num">${fmtMoney(x.ipRev)}</td>
+      <td class="num">${fmtNum(x.totalCensus)}</td>
+      <td class="num">${fmtNum(x.opPatients)}</td>
+      <td class="num">${fmtNum(x.ipPatients)}</td>
+      <td class="num">${fmtMoney(x.opCPV)}</td>
+      <td class="num">${fmtMoney(x.opCPM)}</td>
+      <td class="num">${fmtMoney(x.ipCPV)}</td></tr>`).join('') + '</tbody>';
+}
+
+// ----------- PAYORS
+function renderPayors(rows){
+  const yrs = [...F.yrs].sort();
+  const met = activeMetricGroup;
+  document.getElementById('payBadge').textContent = METRIC_LABEL[met]+' · '+yrs.join('+');
+  const byPay = aggregate(rows, r=>r[C.PAY]);
+  const arr = [...byPay.entries()].map(([k,v])=>({name:DATA.payors[k], ...v}))
+                                   .sort((a,b)=>(b[met]||0)-(a[met]||0));
+  const top = arr.slice(0,15);
+
+  destroy('chPay');
+  charts.chPay = new Chart(document.getElementById('chPay'),{
+    type:'bar',
+    data:{labels:top.map(x=>x.name.length>36?x.name.slice(0,33)+'…':x.name),
+          datasets:[{label:METRIC_LABEL[met],
+                     data:top.map(x=>isMoney(met)?x[met]/1e6:x[met]),
+                     backgroundColor:top.map((_,i)=>PALETTE[i%PALETTE.length])}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false},
+             tooltip:{callbacks:{title:c=>top[c[0].dataIndex].name,
+                                 label:c=>fmtMetric(met,isMoney(met)?c.raw*1e6:c.raw)}}},
+             scales:{x:{beginAtZero:true}},maintainAspectRatio:false}
+  });
+
+  const sortedByRev = [...arr].sort((a,b)=>b.netRev-a.netRev);
+  const top10 = sortedByRev.slice(0,10);
+  const otherSum = sortedByRev.slice(10).reduce((s,x)=>s+x.netRev,0);
+  const dLabels = [...top10.map(x=>x.name), otherSum>0?'Others':null].filter(Boolean);
+  const dValues = [...top10.map(x=>x.netRev), otherSum>0?otherSum:null].filter(x=>x!=null);
+  destroy('chPayDonut');
+  charts.chPayDonut = new Chart(document.getElementById('chPayDonut'),{
+    type:'doughnut',
+    data:{labels:dLabels, datasets:[{data:dValues, backgroundColor:dLabels.map((_,i)=>PALETTE[i%PALETTE.length]), borderWidth:0}]},
+    options:{plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:12}},
+             tooltip:{callbacks:{label:c=>{const t=dValues.reduce((a,b)=>a+b,0);return c.label+': '+fmtMoney(c.raw)+' ('+(c.raw/t*100).toFixed(1)+'%)';}}}},maintainAspectRatio:false}
+  });
+
+  const t = document.getElementById('tblPay');
+  t.innerHTML = `<thead><tr><th>Payor</th>
+    <th class="num">Net Rev</th><th class="num">OP Rev</th><th class="num">IP Rev</th>
+    <th class="num">Tot Census</th><th class="num">OP Patients</th>
+    <th class="num">OP CPV</th><th class="num">OP CPM</th><th class="num">IP CPV</th></tr></thead><tbody>` +
+    arr.map(x=>`<tr><td><strong>${x.name}</strong></td>
+      <td class="num">${fmtMoney(x.netRev)}</td>
+      <td class="num">${fmtMoney(x.opRev)}</td>
+      <td class="num">${fmtMoney(x.ipRev)}</td>
+      <td class="num">${fmtNum(x.totalCensus)}</td>
+      <td class="num">${fmtNum(x.opPatients)}</td>
+      <td class="num">${fmtMoney(x.opCPV)}</td>
+      <td class="num">${fmtMoney(x.opCPM)}</td>
+      <td class="num">${fmtMoney(x.ipCPV)}</td></tr>`).join('') + '</tbody>';
+}
+
+// ----------- INSIGHTS
+function renderInsights(rowsAll){
+  const yrs = [...F.yrs].sort();
+  const rows = lfl(rowsAll);
+  const total = totalMetrics(rows);
+
+  // Period comparison (if YoY)
+  let periodHtml = '';
+  if (isYoYMode()){
+    const [y1,y2] = yrs;
+    const m1 = totalMetrics(rows.filter(r=>r[0]===y1));
+    const m2 = totalMetrics(rows.filter(r=>r[0]===y2));
+    const d = (a,b) => b>0 ? ((a-b)/b)*100 : 0;
+    const dir = v => v>=0 ? 'pos':'neg';
+    const arr = v => v>=0 ? '↑':'↓';
+    const revΔ = d(m2.netRev,m1.netRev), opRevΔ=d(m2.opRev,m1.opRev), ipRevΔ=d(m2.ipRev,m1.ipRev);
+    const cenΔ = d(m2.totalCensus,m1.totalCensus), opCenΔ=d(m2.opCensus,m1.opCensus), ipCenΔ=d(m2.ipCensus,m1.ipCensus);
+    const opPatΔ=d(m2.opPatients,m1.opPatients), ipPatΔ=d(m2.ipPatients,m1.ipPatients);
+    const opCPVΔ=d(m2.opCPV,m1.opCPV), opCPMΔ=d(m2.opCPM,m1.opCPM);
+    const ipCPVΔ=d(m2.ipCPV,m1.ipCPV);
+
+    document.getElementById('execSummary').innerHTML = `
+      <div class="insight-item"><strong>Scope:</strong> ${y1} vs ${y2} · Months: ${F.mo.size===MONTHS.length?'All ('+MONTHS[0]+'–'+MONTHS[MONTHS.length-1]+')':[...F.mo].sort().map(i=>MONTHS[i]).join(', ')} · ${F.lg.size===DATA.locationGroups.length?'All Specialty Groups':F.lg.size+' selected groups'}.</div>
+      <div class="insight-item"><strong>Net Revenue:</strong> ${y2} = ${fmtMoney(m2.netRev)} SAR vs ${y1} = ${fmtMoney(m1.netRev)} SAR — <span class="${dir(revΔ)}">${arr(revΔ)} ${fmtPct(revΔ)} YoY</span>.</div>
+      <div class="insight-item"><strong>Total Census:</strong> ${fmtNum(m2.totalCensus)} vs ${fmtNum(m1.totalCensus)} (${fmtPct(cenΔ)} YoY).</div>
+      <div class="insight-item"><strong>Revenue mix ${y2}:</strong> OP = ${fmtMoney(m2.opRev)} (${m2.netRev>0?(m2.opRev/m2.netRev*100).toFixed(1):0}%), IP = ${fmtMoney(m2.ipRev)} (${m2.netRev>0?(m2.ipRev/m2.netRev*100).toFixed(1):0}%).</div>
+      <div class="insight-item"><strong>Unique Patients ${y2}:</strong> ${fmtNum(m2.opPatients)} OP (${fmtPct(opPatΔ)}) + ${fmtNum(m2.ipPatients)} IP (${fmtPct(ipPatΔ)}).</div>
+    `;
+
+    document.getElementById('trendInsights').innerHTML = `
+      <div class="insight-item ${dir(revΔ)}"><strong>Net Revenue:</strong> ${fmtPct(revΔ)} YoY. OP ${fmtPct(opRevΔ)}, IP ${fmtPct(ipRevΔ)}.</div>
+      <div class="insight-item ${dir(opCenΔ)}"><strong>OP Census ${fmtPct(opCenΔ)}:</strong> ${m2.opCensus<m1.opCensus?'decline in outpatient volume':'growth in outpatient volume'}. OP CPV ${fmtPct(opCPVΔ)}, OP CPM ${fmtPct(opCPMΔ)}.</div>
+      <div class="insight-item ${dir(ipCenΔ)}"><strong>IP Census ${fmtPct(ipCenΔ)}:</strong> Inpatient volume change of ${fmtNum(m2.ipCensus-m1.ipCensus)} visits. IP CPV ${fmtPct(ipCPVΔ)}.</div>
+    `;
+
+    // Specialty YoY
+    const lgs = [...F.lg];
+    const comp = lgs.map(lgI=>{
+      const r1 = rows.filter(r=>r[0]===y1 && r[C.LG]===lgI);
+      const r2 = rows.filter(r=>r[0]===y2 && r[C.LG]===lgI);
+      const t1 = totalMetrics(r1), t2 = totalMetrics(r2);
+      return {name:DATA.locationGroups[lgI], rev1:t1.netRev, rev2:t2.netRev, revΔ:d(t2.netRev,t1.netRev)};
+    });
+    const growers = [...comp].filter(x=>x.rev1>1e5).sort((a,b)=>b.revΔ-a.revΔ).slice(0,5);
+    const decliners = [...comp].filter(x=>x.rev1>1e5).sort((a,b)=>a.revΔ-b.revΔ).slice(0,5);
+    const topGen = [...comp].sort((a,b)=>b.rev2-a.rev2).slice(0,5);
+
+    document.getElementById('specInsights').innerHTML = `
+      <div class="insight-item"><strong>Top 5 Revenue Generators (${y2}):</strong><br>${topGen.map((x,i)=>`${i+1}. ${x.name} — ${fmtMoney(x.rev2)}`).join('<br>')}</div>
+      <div class="insight-item pos"><strong>Fastest-growing (YoY):</strong><br>${growers.map((x,i)=>`${i+1}. ${x.name} — ${fmtPct(x.revΔ)}`).join('<br>')}</div>
+      <div class="insight-item neg"><strong>Largest declines (YoY):</strong><br>${decliners.map((x,i)=>`${i+1}. ${x.name} — ${fmtPct(x.revΔ)}`).join('<br>')}</div>
+    `;
+  } else {
+    document.getElementById('execSummary').innerHTML = `
+      <div class="insight-item"><strong>Scope:</strong> ${yrs.join(', ')} · Months: ${F.mo.size===MONTHS.length?'All ('+MONTHS[0]+'–'+MONTHS[MONTHS.length-1]+')':[...F.mo].sort().map(i=>MONTHS[i]).join(', ')} · ${F.lg.size===DATA.locationGroups.length?'All Specialty Groups':F.lg.size+' selected groups'}.</div>
+      <div class="insight-item"><strong>Net Revenue:</strong> ${fmtMoney(total.netRev)} SAR across ${fmtNum(total.totalCensus)} total visits.</div>
+      <div class="insight-item"><strong>Revenue mix:</strong> OP = ${fmtMoney(total.opRev)} (${total.netRev>0?(total.opRev/total.netRev*100).toFixed(1):0}%), IP = ${fmtMoney(total.ipRev)} (${total.netRev>0?(total.ipRev/total.netRev*100).toFixed(1):0}%).</div>
+      <div class="insight-item"><strong>Unique Patients:</strong> ${fmtNum(total.opPatients)} OP + ${fmtNum(total.ipPatients)} IP.</div>
+      <div class="insight-item"><strong>Average CPV:</strong> OP = ${fmtMoney(total.opCPV)} SAR/visit · IP = ${fmtMoney(total.ipCPV)} SAR/visit. CPM: OP = ${fmtMoney(total.opCPM)} · IP = ${fmtMoney(total.ipCPM)}.</div>
+    `;
+    document.getElementById('trendInsights').innerHTML = `<div class="insight-item">Select both years in the filters to see Year-over-Year growth trends.</div>`;
+
+    // Specialty insights
+    const byLG = aggregate(rows, r=>r[C.LG]);
+    const arr = [...byLG.entries()].map(([k,v])=>({name:DATA.locationGroups[k],...v})).sort((a,b)=>b.netRev-a.netRev);
+    document.getElementById('specInsights').innerHTML = `
+      <div class="insight-item"><strong>Top 5 Revenue Generators:</strong><br>${arr.slice(0,5).map((x,i)=>`${i+1}. ${x.name} — ${fmtMoney(x.netRev)}`).join('<br>')}</div>
+      <div class="insight-item"><strong>Highest OP CPV (min 500 visits):</strong><br>${arr.filter(x=>x.opCensus>=500).sort((a,b)=>b.opCPV-a.opCPV).slice(0,3).map(x=>`${x.name} — ${fmtMoney(x.opCPV)} SAR/visit`).join('<br>')}</div>
+    `;
+  }
+
+  // Payor concentration (uses current scope)
+  const payAgg = aggregate(rows, r=>r[C.PAY]);
+  const payArr = [...payAgg.entries()].map(([k,v])=>({name:DATA.payors[k], rev:v.netRev}))
+                                     .filter(x=>x.rev>0).sort((a,b)=>b.rev-a.rev);
+  const totPay = payArr.reduce((s,x)=>s+x.rev,0);
+  const top5p = totPay>0?payArr.slice(0,5).reduce((s,x)=>s+x.rev,0)/totPay*100:0;
+  const top10p = totPay>0?payArr.slice(0,10).reduce((s,x)=>s+x.rev,0)/totPay*100:0;
+  document.getElementById('payInsights').innerHTML = `
+    <div class="insight-item warn"><strong>Concentration risk:</strong> Top-5 payors = <strong>${top5p.toFixed(1)}%</strong> of revenue; top-10 = <strong>${top10p.toFixed(1)}%</strong>.</div>
+    <div class="insight-item"><strong>Top 3 payors:</strong> ${payArr.slice(0,3).map(x=>`${x.name} (${fmtMoney(x.rev)}, ${totPay>0?(x.rev/totPay*100).toFixed(1):0}%)`).join(' · ')}.</div>
+    <div class="insight-item"><strong>Total payors in scope:</strong> ${payArr.length}.</div>
+  `;
+
+  // Provider highlights
+  const cpAgg = aggregate(rows, r=>r[C.CP]);
+  const cpArr = [...cpAgg.entries()].map(([k,v])=>{
+    const lgI = DATA.cpToLg[k];
+    return {name:DATA.careProviders[k], group:lgI!=null?DATA.locationGroups[lgI]:'—', ...v};
+  }).filter(x=>x.netRev>0).sort((a,b)=>b.netRev-a.netRev);
+  document.getElementById('provInsights').innerHTML = `
+    <div class="insight-item"><strong>Top 5 Revenue-generating Providers:</strong><br>${cpArr.slice(0,5).map((p,i)=>`${i+1}. <strong>${p.name}</strong> — ${p.group} · ${fmtMoney(p.netRev)} · ${fmtNum(p.totalCensus)} visits`).join('<br>')}</div>
+    <div class="insight-item"><strong>Highest OP CPV (min 500 visits):</strong><br>${cpArr.filter(p=>p.opCensus>=500).sort((a,b)=>b.opCPV-a.opCPV).slice(0,3).map(p=>`${p.name} — ${fmtMoney(p.opCPV)} SAR/visit`).join('<br>') || '— none meet threshold —'}</div>
+    <div class="insight-item"><strong>Highest OP volume:</strong><br>${[...cpArr].sort((a,b)=>b.opCensus-a.opCensus).slice(0,3).map(p=>`${p.name} — ${fmtNum(p.opCensus)} visits`).join('<br>')}</div>
+  `;
+
+  // Recommendations
+  let reco = `<div class="insight-item"><strong>Scope-aware actions:</strong></div>`;
+  if (isYoYMode()){
+    const [y1,y2] = yrs;
+    const m1 = totalMetrics(rows.filter(r=>r[0]===y1));
+    const m2 = totalMetrics(rows.filter(r=>r[0]===y2));
+    const d = (a,b)=>b>0?((a-b)/b)*100:0;
+    const revΔ = d(m2.netRev,m1.netRev), opCPVΔ = d(m2.opCPV,m1.opCPV);
+    reco += `<div class="insight-item ${revΔ<0?'neg':'pos'}"><strong>Revenue ${fmtPct(revΔ)}:</strong> ${revΔ<0?'Investigate declining specialties; validate pricing / case-mix / contract renewals.':'Growth is positive — sustain the momentum and benchmark top performers.'}</div>`;
+    reco += `<div class="insight-item ${opCPVΔ<0?'neg':'pos'}"><strong>OP CPV ${fmtPct(opCPVΔ)}:</strong> ${opCPVΔ<0?'Charge-per-visit compression — review service mix, consultation-vs-procedure ratio, tariff schedules.':'OP charges rising — ensure quality & patient-mix are intact.'}</div>`;
+  }
+  reco += `<div class="insight-item warn"><strong>Payor concentration (${top5p.toFixed(1)}% top-5):</strong> ${top5p>50?'High dependency — diversify payor mix and renegotiate top contracts.':'Moderate concentration — monitor contract performance.'}</div>`;
+  reco += `<div class="insight-item"><strong>Focus actions:</strong> (1) Deep-dive on declining specialties, (2) Audit CPV drivers, (3) Expand low-concentration payor contracts, (4) Review provider productivity vs CPV benchmarks per specialty.</div>`;
+  reco += `<div class="insight-item"><strong>How to drill down:</strong> Use the sidebar filters — tick/untick any Year, Month, Location Group, Location, Care Provider, or Payor; the entire dashboard will re-aggregate instantly. Pick exactly 2 years for YoY mode.</div>`;
+  document.getElementById('recoInsights').innerHTML = reco;
+}
+
+// ----------- TABS
+document.querySelectorAll('.tab').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById(b.dataset.tab).classList.add('active');
+    renderAll();
+  };
+});
+
+// ----------- EXPORT CSV
+document.getElementById('btnExport').onclick = ()=>{
+  const rows = filteredRows();
+  const headers = ['Year','Month','LocationGroup','Location','CareProvider','Payor','NetRev','OPRev','OPCensus','OPPatients','IPRev','IPCensus','IPPatients','TotCensus'];
+  const lines = [headers.join(',')];
+  rows.forEach(r=>{
+    const esc = v => (typeof v==='string' && (v.includes(',')||v.includes('"'))) ? '"'+v.replace(/"/g,'""')+'"' : v;
+    lines.push([
+      r[0], MONTHS[r[1]],
+      esc(DATA.locationGroups[r[2]]||''),
+      esc(DATA.locations[r[3]]||''),
+      esc(DATA.careProviders[r[4]]||''),
+      esc(DATA.payors[r[5]]||''),
+      r[6],r[7],r[8],r[9],r[10],r[11],r[12],r[13]
+    ].join(','));
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `IMC_filtered_data_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+};
+document.getElementById('btnPrint').onclick = ()=> window.print();
+
+// ----------- MAIN RENDER
+function renderAll(){
+  const rows = filteredRows();
+  renderStatus(rows.length);
+  renderKPIs(rows);
+  const active = document.querySelector('.section.active').id;
+  if (active==='overview') renderOverview(rows);
+  else if (active==='trends') { buildTrendPills(); renderTrends(rows); }
+  else if (active==='groups') { buildGroupPills(); renderGroups(rows); }
+  else if (active==='locations') { buildGroupPills(); renderLocations(rows); }
+  else if (active==='providers') { buildGroupPills(); renderProviders(rows); }
+  else if (active==='payors') { buildGroupPills(); renderPayors(rows); }
+  else if (active==='insights') renderInsights(rows);
+}
+
+renderAll();
+
+// dynamic titles
+const per = (DATA.meta&&DATA.meta.periods)||[];
+const rng = MONTHS.length? (MONTHS[0]+'–'+MONTHS[MONTHS.length-1]) : '';
+document.getElementById('subTitle').textContent = `Census & Revenue Analytics · ${rng} · ${YEARS.join(' vs ')}`;
+document.title = `IMC — Census & Revenue Dashboard (${rng})`;
+if (DATA.meta) document.getElementById('dataAsOf').textContent = `Data: ${per[0]} → ${per[per.length-1]} · updated ${DATA.meta.generatedAt.replace('T',' ')}`;
+
+// mobile drawer
+const aside=document.querySelector('aside'), ov=document.getElementById('overlay');
+const closeD=()=>{aside.classList.remove('open');ov.classList.remove('show');};
+document.getElementById('btnMenu').onclick=()=>{aside.classList.add('open');ov.classList.add('show');};
+ov.onclick=closeD; document.getElementById('btnApply').onclick=closeD;
+let rT; window.addEventListener('resize',()=>{clearTimeout(rT);rT=setTimeout(()=>Object.values(charts).forEach(c=>c.resize()),200);});
+} // end start()
+
+// ---------- LOAD: plain data, or encrypted data + password ----------
+const $=id=>document.getElementById(id);
+const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function decryptPayload(enc,pw){
+  const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+  const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(enc.salt),iterations:enc.iter,hash:'SHA-256'},
+              km,{name:'AES-GCM',length:256},false,['decrypt']);
+  const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64(enc.iv)},key,b64(enc.ct)); // throws if wrong pw
+  const ds=new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return JSON.parse(await new Response(ds).text());
+}
+function showPicker(){ $('spin').style.display='none'; $('loadMsg').textContent=''; $('pick').style.display='block';
+  $('pickFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+    rd.onload=()=>{const o=JSON.parse(rd.result); o.ct?askPassword(o):start(o);};rd.readAsText(f);}; }
+function askPassword(enc){
+  if(!window.crypto||!crypto.subtle||!window.DecompressionStream){
+    $('spin').style.display='none';$('loadMsg').innerHTML='This browser is too old to open the protected dashboard.<br>Please use an up-to-date Chrome, Edge, Safari or Firefox.';return;}
+  $('spin').style.display='none'; $('loadMsg').textContent=''; $('pick').style.display='none'; $('login').style.display='block';
+  const saved=sessionStorage.getItem('imc_pw');
+  const tryPw=async(pw,auto)=>{
+    $('pwBtn').disabled=true; $('pwBtn').textContent='Unlocking…'; $('pwErr').textContent='';
+    try{ const data=await decryptPayload(enc,pw);
+         if($('pwRemember').checked||auto) sessionStorage.setItem('imc_pw',pw); else sessionStorage.removeItem('imc_pw');
+         $('login').style.display='none'; $('btnLock').style.display='inline-block'; start(data);
+    }catch(e){ sessionStorage.removeItem('imc_pw');
+         if(!auto){ $('pwErr').textContent='Incorrect password. Please try again.'; $('pw').select(); }
+    }finally{ $('pwBtn').disabled=false; $('pwBtn').textContent='Unlock dashboard'; }
+  };
+  $('login').onsubmit=e=>{e.preventDefault(); const pw=$('pw').value; if(pw) tryPw(pw,false);};
+  $('pwEye').onclick=()=>{$('pw').type=$('pw').type==='password'?'text':'password';};
+  setTimeout(()=>$('pw').focus(),50);
+  if(saved) tryPw(saved,true);
+}
+$('btnLock').onclick=()=>{sessionStorage.removeItem('imc_pw'); location.reload();};
+(async()=>{
+  if(window.__IMC_ENC__) return askPassword(window.__IMC_ENC__);
+  if(window.__IMC_DATA__) return start(window.__IMC_DATA__);
+  try{ const r=await fetch('data.enc?v='+Date.now()); if(r.ok){ const o=await r.json(); if(o&&o.ct) return askPassword(o);} }catch(e){}
+  try{ const r=await fetch('data.json?v='+Date.now()); if(r.ok) return start(await r.json()); }catch(e){}
+  showPicker();
+})();
+</script>
+</body>
+</html>

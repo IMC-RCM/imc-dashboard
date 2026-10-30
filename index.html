@@ -769,7 +769,9 @@ function renderStatus(filteredCount){
   if (F.cp.size < DATA.careProviders.length) chips.push(`<span class="chip">${F.cp.size} Providers</span>`);
   if (F.pay.size < DATA.payors.length) chips.push(`<span class="chip">${F.pay.size} Payors</span>`);
   document.getElementById('scopeChips').innerHTML = chips.join('');
-  document.getElementById('scopeText').textContent = F.yrs.size===YEARS.length && F.mo.size===MONTHS.length ? 'All data' : 'Filtered scope';
+  const allSel = F.yrs.size===YEARS.length && F.mo.size===MONTHS.length && F.lg.size===DATA.locationGroups.length
+    && F.loc.size===DATA.locations.length && F.cp.size===DATA.careProviders.length && F.pay.size===DATA.payors.length;
+  document.getElementById('scopeText').textContent = allSel ? 'All data' : 'Filtered scope';
   document.getElementById('rowCount').textContent = `${filteredCount.toLocaleString()} rows in scope`;
   const n=lflNote(filteredRows()); if(n) document.getElementById('scopeChips').innerHTML += `<span class="chip" style="background:#FFF1D6;color:#8A5A00">⚖ ${n}</span>`;
 }

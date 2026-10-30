@@ -136,6 +136,8 @@
   .chart-container{position:relative;height:290px}
   .chart-container.tall{height:400px}
   .chart-container.xtall{height:540px}
+  .rank-scroll{max-height:640px;overflow-y:auto;overflow-x:hidden}
+  .chg-pos{color:#1E8E6B;font-weight:600}.chg-neg{color:#CF3754;font-weight:600}
 
   /* TABLES */
   table{width:100%;border-collapse:collapse;font-size:12px}
@@ -413,23 +415,23 @@
   </section>
 
   <section id="locations" class="section">
-    <div class="card"><h3>Top 20 Locations <span class="badge" id="locBadge"></span></h3>
-      <div class="chart-container xtall"><canvas id="chLoc"></canvas></div></div>
+    <div class="card"><h3>Locations Ranking <span class="badge" id="locBadge"></span></h3>
+      <div class="rank-scroll"><div class="chart-container xtall"><canvas id="chLoc"></canvas></div></div></div>
     <div class="card" style="margin-top:12px"><h3>All Locations — Detailed Table</h3>
       <div class="scroll" style="max-height:600px"><table id="tblLoc"></table></div></div>
   </section>
 
   <section id="providers" class="section">
-    <div class="card"><h3>Top 20 Care Providers <span class="badge" id="provBadge"></span></h3>
-      <div class="chart-container xtall"><canvas id="chProv"></canvas></div></div>
+    <div class="card"><h3>Care Providers Ranking <span class="badge" id="provBadge"></span></h3>
+      <div class="rank-scroll"><div class="chart-container xtall"><canvas id="chProv"></canvas></div></div></div>
     <div class="card" style="margin-top:12px"><h3>All Care Providers — Detailed Table</h3>
       <div class="scroll" style="max-height:600px"><table id="tblProv"></table></div></div>
   </section>
 
   <section id="payors" class="section">
     <div class="grid charts-grid">
-      <div class="card"><h3>Top 15 Payors by Revenue <span class="badge" id="payBadge"></span></h3>
-        <div class="chart-container xtall"><canvas id="chPay"></canvas></div></div>
+      <div class="card"><h3>Payors Ranking <span class="badge" id="payBadge"></span></h3>
+        <div class="rank-scroll"><div class="chart-container xtall"><canvas id="chPay"></canvas></div></div></div>
       <div class="card"><h3>Payor Revenue Share</h3>
         <div class="chart-container xtall"><canvas id="chPayDonut"></canvas></div></div>
     </div>
@@ -1173,38 +1175,76 @@ function renderGroups(rows){
       <td class="num">${fmtMoney(x.ipCPM)}</td></tr>`).join('') + '</tbody>';
 }
 
+// ----------- SHARED RANKING (all items; side-by-side years when 2 years selected, like Location Groups)
+function yoyMaps(rows, col){
+  if (!isYoYMode()) return null;
+  const [y1,y2] = [...F.yrs].sort();
+  const L = lfl(rows);
+  return {y1, y2, a1:aggregate(L.filter(r=>r[0]===y1), r=>r[col]), a2:aggregate(L.filter(r=>r[0]===y2), r=>r[col])};
+}
+function rankChart(id, arr, ym, titleFn){
+  const met = activeMetricGroup, sc = v=>isMoney(met)?v/1e6:v;
+  const short = n=>n.length>36?n.slice(0,33)+'…':n;
+  const box = document.getElementById(id).parentElement;
+  box.style.height = Math.max(300, arr.length*(ym?30:22)+90)+'px';
+  destroy(id);
+  const yTicks = {autoSkip:false, font:{size:10.5}};
+  const xAxis = {beginAtZero:true, position:'top', title:{display:true,text:isMoney(met)?'SAR (M)':METRIC_LABEL[met]}};
+  let datasets, tip;
+  if (ym){
+    const v = (m,x)=>((m.get(x.k)||{})[met])||0;
+    datasets = [{label:String(ym.y1), data:arr.map(x=>sc(v(ym.a1,x))), backgroundColor:IMC_COLORS.primary},
+                {label:String(ym.y2), data:arr.map(x=>sc(v(ym.a2,x))), backgroundColor:IMC_COLORS.gold}];
+    tip = c=>c.dataset.label+': '+fmtMetric(met,isMoney(met)?c.raw*1e6:c.raw);
+  } else {
+    datasets = [{label:METRIC_LABEL[met], data:arr.map(x=>sc(x[met]||0)), backgroundColor:arr.map((_,i)=>PALETTE[i%PALETTE.length])}];
+    tip = c=>fmtMetric(met,isMoney(met)?c.raw*1e6:c.raw);
+  }
+  charts[id] = new Chart(document.getElementById(id),{
+    type:'bar', data:{labels:arr.map(x=>short(x.name)), datasets},
+    options:{indexAxis:'y', plugins:{legend:{display:!!ym, position:'top'},
+             tooltip:{callbacks:{title:c=>titleFn(arr[c[0].dataIndex]), label:tip}}},
+             scales:{x:xAxis, y:{ticks:yTicks}}, maintainAspectRatio:false}
+  });
+}
+// Extra table columns for the ranking metric per year + change, in 2-year mode
+function yoyHead(ym){
+  if (!ym) return '';
+  const s = METRIC_SHORT[activeMetricGroup];
+  return `<th class="num">${s} ${ym.y1}</th><th class="num">${s} ${ym.y2}</th><th class="num">Δ %</th>`;
+}
+function yoyCells(ym, x){
+  if (!ym) return '';
+  const met = activeMetricGroup;
+  const v1 = ((ym.a1.get(x.k)||{})[met])||0, v2 = ((ym.a2.get(x.k)||{})[met])||0;
+  const d = v1>0 ? (v2-v1)/v1*100 : null;
+  const cls = d==null?'':(d>=0?'chg-pos':'chg-neg');
+  return `<td class="num">${fmtMetric(met,v1)}</td><td class="num">${fmtMetric(met,v2)}</td><td class="num ${cls}">${d==null?(v2>0?'new':'—'):fmtPct(d)}</td>`;
+}
+function rankBadge(id, n, noun){
+  const yrs=[...F.yrs].sort();
+  document.getElementById(id).textContent = METRIC_LABEL[activeMetricGroup]+' · '+(isYoYMode()?yrs.join(' vs '):yrs.join('+'))+' · '+n+' '+noun;
+}
+
 // ----------- LOCATIONS
 function renderLocations(rows){
-  const yrs = [...F.yrs].sort();
   const met = activeMetricGroup;
-  document.getElementById('locBadge').textContent = METRIC_LABEL[met]+' · '+yrs.join('+');
   const byLoc = aggregate(rows, r=>r[C.LOC]);
   const arr = [...byLoc.entries()].map(([k,v])=>{
     const lgI = DATA.locToLg[k];
-    return {name:DATA.locations[k], group:lgI!=null?DATA.locationGroups[lgI]:'—', ...v};
+    return {k, name:DATA.locations[k], group:lgI!=null?DATA.locationGroups[lgI]:'—', ...v};
   }).sort((a,b)=>(b[met]||0)-(a[met]||0));
-  const top = arr.slice(0,20);
-
-  destroy('chLoc');
-  charts.chLoc = new Chart(document.getElementById('chLoc'),{
-    type:'bar',
-    data:{labels:top.map(x=>x.name.length>36?x.name.slice(0,33)+'…':x.name),
-          datasets:[{label:METRIC_LABEL[met],
-                     data:top.map(x=>isMoney(met)?x[met]/1e6:x[met]),
-                     backgroundColor:top.map((_,i)=>PALETTE[i%PALETTE.length])}]},
-    options:{indexAxis:'y',plugins:{legend:{display:false},
-             tooltip:{callbacks:{title:c=>top[c[0].dataIndex].name+' ('+top[c[0].dataIndex].group+')',
-                                 label:c=>fmtMetric(met,isMoney(met)?c.raw*1e6:c.raw)}}},
-             scales:{x:{beginAtZero:true}},maintainAspectRatio:false}
-  });
+  const ym = yoyMaps(rows, C.LOC);
+  rankBadge('locBadge', arr.length, 'locations');
+  rankChart('chLoc', arr, ym, x=>x.name+' ('+x.group+')');
 
   const t = document.getElementById('tblLoc');
-  t.innerHTML = `<thead><tr><th>Group</th><th>Location</th>
+  t.innerHTML = `<thead><tr><th>Group</th><th>Location</th>${yoyHead(ym)}
     <th class="num">Net Rev</th><th class="num">OP Rev</th><th class="num">IP Rev</th>
     <th class="num">Tot Census</th><th class="num">OP Census</th><th class="num">IP Census</th>
     <th class="num">OP Patients</th><th class="num">OP CPV</th><th class="num">OP CPM</th>
     <th class="num">IP CPV</th></tr></thead><tbody>` +
-    arr.map(x=>`<tr><td>${x.group}</td><td><strong>${x.name}</strong></td>
+    arr.map(x=>`<tr><td>${x.group}</td><td><strong>${x.name}</strong></td>${yoyCells(ym,x)}
       <td class="num">${fmtMoney(x.netRev)}</td>
       <td class="num">${fmtMoney(x.opRev)}</td>
       <td class="num">${fmtMoney(x.ipRev)}</td>
@@ -1219,35 +1259,22 @@ function renderLocations(rows){
 
 // ----------- PROVIDERS
 function renderProviders(rows){
-  const yrs = [...F.yrs].sort();
   const met = activeMetricGroup;
-  document.getElementById('provBadge').textContent = METRIC_LABEL[met]+' · '+yrs.join('+');
   const byCP = aggregate(rows, r=>r[C.CP]);
   const arr = [...byCP.entries()].map(([k,v])=>{
     const lgI = DATA.cpToLg[k];
-    return {name:DATA.careProviders[k], group:lgI!=null?DATA.locationGroups[lgI]:'—', ...v};
+    return {k, name:DATA.careProviders[k], group:lgI!=null?DATA.locationGroups[lgI]:'—', ...v};
   }).sort((a,b)=>(b[met]||0)-(a[met]||0));
-  const top = arr.slice(0,20);
-
-  destroy('chProv');
-  charts.chProv = new Chart(document.getElementById('chProv'),{
-    type:'bar',
-    data:{labels:top.map(x=>x.name),
-          datasets:[{label:METRIC_LABEL[met],
-                     data:top.map(x=>isMoney(met)?x[met]/1e6:x[met]),
-                     backgroundColor:top.map((_,i)=>PALETTE[i%PALETTE.length])}]},
-    options:{indexAxis:'y',plugins:{legend:{display:false},
-             tooltip:{callbacks:{title:c=>top[c[0].dataIndex].name+' ('+top[c[0].dataIndex].group+')',
-                                 label:c=>fmtMetric(met,isMoney(met)?c.raw*1e6:c.raw)}}},
-             scales:{x:{beginAtZero:true}},maintainAspectRatio:false}
-  });
+  const ym = yoyMaps(rows, C.CP);
+  rankBadge('provBadge', arr.length, 'providers');
+  rankChart('chProv', arr, ym, x=>x.name+' ('+x.group+')');
 
   const t = document.getElementById('tblProv');
-  t.innerHTML = `<thead><tr><th>Group</th><th>Care Provider</th>
+  t.innerHTML = `<thead><tr><th>Group</th><th>Care Provider</th>${yoyHead(ym)}
     <th class="num">Net Rev</th><th class="num">OP Rev</th><th class="num">IP Rev</th>
     <th class="num">Tot Census</th><th class="num">OP Patients</th><th class="num">IP Patients</th>
     <th class="num">OP CPV</th><th class="num">OP CPM</th><th class="num">IP CPV</th></tr></thead><tbody>` +
-    arr.slice(0,600).map(x=>`<tr><td>${x.group}</td><td><strong>${x.name}</strong></td>
+    arr.map(x=>`<tr><td>${x.group}</td><td><strong>${x.name}</strong></td>${yoyCells(ym,x)}
       <td class="num">${fmtMoney(x.netRev)}</td>
       <td class="num">${fmtMoney(x.opRev)}</td>
       <td class="num">${fmtMoney(x.ipRev)}</td>
@@ -1261,26 +1288,13 @@ function renderProviders(rows){
 
 // ----------- PAYORS
 function renderPayors(rows){
-  const yrs = [...F.yrs].sort();
   const met = activeMetricGroup;
-  document.getElementById('payBadge').textContent = METRIC_LABEL[met]+' · '+yrs.join('+');
   const byPay = aggregate(rows, r=>r[C.PAY]);
-  const arr = [...byPay.entries()].map(([k,v])=>({name:DATA.payors[k], ...v}))
+  const arr = [...byPay.entries()].map(([k,v])=>({k, name:DATA.payors[k], ...v}))
                                    .sort((a,b)=>(b[met]||0)-(a[met]||0));
-  const top = arr.slice(0,15);
-
-  destroy('chPay');
-  charts.chPay = new Chart(document.getElementById('chPay'),{
-    type:'bar',
-    data:{labels:top.map(x=>x.name.length>36?x.name.slice(0,33)+'…':x.name),
-          datasets:[{label:METRIC_LABEL[met],
-                     data:top.map(x=>isMoney(met)?x[met]/1e6:x[met]),
-                     backgroundColor:top.map((_,i)=>PALETTE[i%PALETTE.length])}]},
-    options:{indexAxis:'y',plugins:{legend:{display:false},
-             tooltip:{callbacks:{title:c=>top[c[0].dataIndex].name,
-                                 label:c=>fmtMetric(met,isMoney(met)?c.raw*1e6:c.raw)}}},
-             scales:{x:{beginAtZero:true}},maintainAspectRatio:false}
-  });
+  const ym = yoyMaps(rows, C.PAY);
+  rankBadge('payBadge', arr.length, 'payors');
+  rankChart('chPay', arr, ym, x=>x.name);
 
   const sortedByRev = [...arr].sort((a,b)=>b.netRev-a.netRev);
   const top10 = sortedByRev.slice(0,10);
@@ -1296,11 +1310,11 @@ function renderPayors(rows){
   });
 
   const t = document.getElementById('tblPay');
-  t.innerHTML = `<thead><tr><th>Payor</th>
+  t.innerHTML = `<thead><tr><th>Payor</th>${yoyHead(ym)}
     <th class="num">Net Rev</th><th class="num">OP Rev</th><th class="num">IP Rev</th>
     <th class="num">Tot Census</th><th class="num">OP Patients</th>
     <th class="num">OP CPV</th><th class="num">OP CPM</th><th class="num">IP CPV</th></tr></thead><tbody>` +
-    arr.map(x=>`<tr><td><strong>${x.name}</strong></td>
+    arr.map(x=>`<tr><td><strong>${x.name}</strong></td>${yoyCells(ym,x)}
       <td class="num">${fmtMoney(x.netRev)}</td>
       <td class="num">${fmtMoney(x.opRev)}</td>
       <td class="num">${fmtMoney(x.ipRev)}</td>

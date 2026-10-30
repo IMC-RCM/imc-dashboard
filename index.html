@@ -272,6 +272,13 @@
     </div>
   </div>
 
+  <div class="filter-group" data-group="qtr">
+    <div class="fg-head"><span>🗓 Quarters <span class="count" id="cnt-qtr"></span></span><span class="caret">▼</span></div>
+    <div class="fg-body">
+      <div class="chk-list" id="list-qtr"></div>
+    </div>
+  </div>
+
   <div class="filter-group" data-group="mo">
     <div class="fg-head"><span>📆 Months <span class="count" id="cnt-mo"></span></span><span class="caret">▼</span></div>
     <div class="fg-body">
@@ -558,6 +565,52 @@ function labelCP(name,i){
   });
 })();
 buildCheckList('list-mo', MONTHS, 'mo');
+// ----------- QUARTERS (drive the month selection; no separate filter state)
+// Month index -> quarter number (1-4); accepts names like "Jan"/"January" or numeric forms like "2025-01"
+const monthToQ = MONTHS.map(m=>{
+  const s = String(m).trim();
+  let n = MONTH_ORDER.findIndex(x=>s.slice(0,3).toLowerCase()===x.toLowerCase());
+  if (n<0){ const d = s.match(/(\d{1,2})\s*$/); if (d) n = parseInt(d[1])-1; }
+  return (n>=0 && n<12) ? Math.floor(n/3)+1 : null;
+});
+const QUARTERS = [1,2,3,4].filter(q=>monthToQ.includes(q));
+const qMonths = q => MONTHS.map((_,i)=>i).filter(i=>monthToQ[i]===q);
+(function(){
+  const el = document.getElementById('list-qtr');
+  if (!QUARTERS.length){ el.closest('.filter-group').style.display='none'; return; }
+  el.innerHTML = QUARTERS.map(q=>{
+    const ms = qMonths(q).map(i=>MONTHS[i]);
+    return `<label class="chk"><input type="checkbox" data-q="${q}" checked><span>Q${q} <span style="color:#6B7E9B;font-size:10.5px">· ${ms[0]}–${ms[ms.length-1]}</span></span></label>`;
+  }).join('');
+  el.addEventListener('change', e=>{
+    if (e.target.type!=='checkbox') return;
+    const on = e.target.checked;
+    qMonths(parseInt(e.target.dataset.q)).forEach(i=>{
+      if (on) F.mo.add(i); else F.mo.delete(i);
+      const cb = document.getElementById(`mo-${i}`); if (cb) cb.checked = on;
+    });
+    updateCounts(); renderAll();
+  });
+})();
+// Reflect month selection on quarter boxes: all months = checked, some = partial, none = unchecked
+function syncQuarters(){
+  let full = 0;
+  document.querySelectorAll('#list-qtr input[data-q]').forEach(cb=>{
+    const ms = qMonths(parseInt(cb.dataset.q));
+    const sel = ms.filter(i=>F.mo.has(i)).length;
+    cb.checked = sel===ms.length;
+    cb.indeterminate = sel>0 && sel<ms.length;
+    if (sel===ms.length) full++;
+  });
+  const c = document.getElementById('cnt-qtr'); if (c) c.textContent = `${full}/${QUARTERS.length}`;
+}
+// Label for the current month selection: "Q1, Q3" when it is made of whole quarters
+function quarterLabel(){
+  if (!F.mo.size) return null;
+  const qs = QUARTERS.filter(q=>qMonths(q).every(i=>F.mo.has(i)));
+  const covered = qs.reduce((n,q)=>n+qMonths(q).length,0);
+  return (qs.length && covered===F.mo.size) ? qs.map(q=>'Q'+q).join(', ') : null;
+}
 buildCheckList('list-lg', DATA.locationGroups, 'lg', labelLG);
 buildCheckList('list-loc', DATA.locations, 'loc', labelLoc);
 buildCheckList('list-cp', DATA.careProviders, 'cp', labelCP);
@@ -644,6 +697,7 @@ function updateCounts(){
   document.getElementById('cnt-loc').textContent = `${F.loc.size}/${DATA.locations.length}`;
   document.getElementById('cnt-cp').textContent = `${F.cp.size}/${DATA.careProviders.length}`;
   document.getElementById('cnt-pay').textContent = `${F.pay.size}/${DATA.payors.length}`;
+  syncQuarters();
 }
 updateCounts();
 
@@ -707,10 +761,10 @@ function totalMetrics(rows){
 
 // ----------- SCOPE STATUS BAR
 function renderStatus(filteredCount){
-  const yrs=[...F.yrs].sort(), mo=[...F.mo].sort();
+  const yrs=[...F.yrs].sort(), mo=[...F.mo].sort((a,b)=>a-b);
   const chips = [];
   chips.push(`<span class="chip">${yrs.join(' + ') || 'No year'}</span>`);
-  if (F.mo.size < MONTHS.length) chips.push(`<span class="chip">${mo.map(i=>MONTHS[i]).join(', ')}</span>`);
+  if (F.mo.size < MONTHS.length) chips.push(`<span class="chip">${quarterLabel() || mo.map(i=>MONTHS[i]).join(', ')}</span>`);
   if (F.lg.size < DATA.locationGroups.length) chips.push(`<span class="chip">${F.lg.size} Location Groups</span>`);
   if (F.loc.size < DATA.locations.length) chips.push(`<span class="chip">${F.loc.size} Locations</span>`);
   if (F.cp.size < DATA.careProviders.length) chips.push(`<span class="chip">${F.cp.size} Providers</span>`);
@@ -1279,7 +1333,7 @@ function renderInsights(rowsAll){
     const ipCPVΔ=d(m2.ipCPV,m1.ipCPV);
 
     document.getElementById('execSummary').innerHTML = `
-      <div class="insight-item"><strong>Scope:</strong> ${y1} vs ${y2} · Months: ${F.mo.size===MONTHS.length?'All ('+MONTHS[0]+'–'+MONTHS[MONTHS.length-1]+')':[...F.mo].sort().map(i=>MONTHS[i]).join(', ')} · ${F.lg.size===DATA.locationGroups.length?'All Specialty Groups':F.lg.size+' selected groups'}.</div>
+      <div class="insight-item"><strong>Scope:</strong> ${y1} vs ${y2} · Months: ${F.mo.size===MONTHS.length?'All ('+MONTHS[0]+'–'+MONTHS[MONTHS.length-1]+')':(quarterLabel()||[...F.mo].sort((a,b)=>a-b).map(i=>MONTHS[i]).join(', '))} · ${F.lg.size===DATA.locationGroups.length?'All Specialty Groups':F.lg.size+' selected groups'}.</div>
       <div class="insight-item"><strong>Net Revenue:</strong> ${y2} = ${fmtMoney(m2.netRev)} SAR vs ${y1} = ${fmtMoney(m1.netRev)} SAR — <span class="${dir(revΔ)}">${arr(revΔ)} ${fmtPct(revΔ)} YoY</span>.</div>
       <div class="insight-item"><strong>Total Census:</strong> ${fmtNum(m2.totalCensus)} vs ${fmtNum(m1.totalCensus)} (${fmtPct(cenΔ)} YoY).</div>
       <div class="insight-item"><strong>Revenue mix ${y2}:</strong> OP = ${fmtMoney(m2.opRev)} (${m2.netRev>0?(m2.opRev/m2.netRev*100).toFixed(1):0}%), IP = ${fmtMoney(m2.ipRev)} (${m2.netRev>0?(m2.ipRev/m2.netRev*100).toFixed(1):0}%).</div>
@@ -1311,7 +1365,7 @@ function renderInsights(rowsAll){
     `;
   } else {
     document.getElementById('execSummary').innerHTML = `
-      <div class="insight-item"><strong>Scope:</strong> ${yrs.join(', ')} · Months: ${F.mo.size===MONTHS.length?'All ('+MONTHS[0]+'–'+MONTHS[MONTHS.length-1]+')':[...F.mo].sort().map(i=>MONTHS[i]).join(', ')} · ${F.lg.size===DATA.locationGroups.length?'All Specialty Groups':F.lg.size+' selected groups'}.</div>
+      <div class="insight-item"><strong>Scope:</strong> ${yrs.join(', ')} · Months: ${F.mo.size===MONTHS.length?'All ('+MONTHS[0]+'–'+MONTHS[MONTHS.length-1]+')':(quarterLabel()||[...F.mo].sort((a,b)=>a-b).map(i=>MONTHS[i]).join(', '))} · ${F.lg.size===DATA.locationGroups.length?'All Specialty Groups':F.lg.size+' selected groups'}.</div>
       <div class="insight-item"><strong>Net Revenue:</strong> ${fmtMoney(total.netRev)} SAR across ${fmtNum(total.totalCensus)} total visits.</div>
       <div class="insight-item"><strong>Revenue mix:</strong> OP = ${fmtMoney(total.opRev)} (${total.netRev>0?(total.opRev/total.netRev*100).toFixed(1):0}%), IP = ${fmtMoney(total.ipRev)} (${total.netRev>0?(total.ipRev/total.netRev*100).toFixed(1):0}%).</div>
       <div class="insight-item"><strong>Unique Patients:</strong> ${fmtNum(total.opPatients)} OP + ${fmtNum(total.ipPatients)} IP.</div>

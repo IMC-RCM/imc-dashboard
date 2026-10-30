@@ -358,6 +358,11 @@
     <button class="tab" data-tab="insights">💡 Insights &amp; Findings</button>
   </div>
 
+  <div class="card" id="metricBar" style="margin-bottom:12px;display:none">
+    <h3>Metric <span style="font-weight:400;color:#6B7E9B;font-size:11px">· applies to Trends, Location Groups, Locations, Care Providers and Payors</span></h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px" id="metricPills"></div>
+  </div>
+
   <section id="overview" class="section active">
     <div id="kpiRow" class="kpi-grid"></div>
     <div class="grid charts-grid">
@@ -379,10 +384,6 @@
   </section>
 
   <section id="trends" class="section">
-    <div class="card" style="margin-bottom:12px">
-      <h3>Metric to track</h3>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px" id="trendPills"></div>
-    </div>
     <div class="grid charts-grid">
       <div class="card" style="grid-column:1/-1"><h3>Monthly Trend — Period Comparison</h3>
         <div class="chart-container tall"><canvas id="chTrendMain"></canvas></div></div>
@@ -398,10 +399,6 @@
   </section>
 
   <section id="groups" class="section">
-    <div class="card" style="margin-bottom:12px">
-      <h3>Metric to rank by</h3>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px" id="groupPills"></div>
-    </div>
     <div class="grid charts-grid">
       <div class="card" style="grid-column:1/-1"><h3>Location Groups Ranking <span class="badge" id="lgBadge"></span></h3>
         <div class="chart-container xtall"><canvas id="chLG"></canvas></div></div>
@@ -797,8 +794,7 @@ function lflNote(rows){
 }
 
 // ----------- RENDER KPIS
-let activeMetricTrend = 'netRev';
-let activeMetricGroup = 'netRev';
+let activeMetric = 'netRev';  // one metric shared by every tab that uses it
 
 function renderKPIs(rows){
   const yrs = [...F.yrs].sort();
@@ -958,20 +954,12 @@ function renderOverview(rows){
 }
 
 // ----------- TRENDS
-function buildTrendPills(){
-  const metrics = ['netRev','totalCensus','opCensus','ipCensus','opCPV','opCPM','ipCPV','ipCPM','opRev','ipRev'];
-  const el = document.getElementById('trendPills');
-  el.innerHTML = metrics.map(m=>`<button class="btn" data-trend="${m}" style="padding:5px 10px;font-size:11.5px;background:${m===activeMetricTrend?'linear-gradient(135deg,#0E356A,#1B5894)':'#F9FBFE'};color:${m===activeMetricTrend?'#fff':'#415778'};border:1px solid ${m===activeMetricTrend?'#0E356A':'#DCE4F0'}">${METRIC_SHORT[m]}</button>`).join('');
-  el.querySelectorAll('button').forEach(b=>{
-    b.onclick=()=>{activeMetricTrend=b.dataset.trend; buildTrendPills(); renderAll();};
-  });
-}
-function buildGroupPills(){
+function buildMetricPills(){
   const metrics = ['netRev','opRev','ipRev','totalCensus','opCensus','ipCensus','opPatients','ipPatients','opCPV','opCPM','ipCPV','ipCPM'];
-  const el = document.getElementById('groupPills');
-  el.innerHTML = metrics.map(m=>`<button class="btn" data-g="${m}" style="padding:5px 10px;font-size:11.5px;background:${m===activeMetricGroup?'linear-gradient(135deg,#0E356A,#1B5894)':'#F9FBFE'};color:${m===activeMetricGroup?'#fff':'#415778'};border:1px solid ${m===activeMetricGroup?'#0E356A':'#DCE4F0'}">${METRIC_SHORT[m]}</button>`).join('');
+  const el = document.getElementById('metricPills');
+  el.innerHTML = metrics.map(m=>`<button class="btn" data-m="${m}" title="${METRIC_LABEL[m]}" style="padding:5px 10px;font-size:11.5px;background:${m===activeMetric?'linear-gradient(135deg,#0E356A,#1B5894)':'#F9FBFE'};color:${m===activeMetric?'#fff':'#415778'};border:1px solid ${m===activeMetric?'#0E356A':'#DCE4F0'}">${METRIC_SHORT[m]}</button>`).join('');
   el.querySelectorAll('button').forEach(b=>{
-    b.onclick=()=>{activeMetricGroup=b.dataset.g; buildGroupPills(); renderAll();};
+    b.onclick=()=>{activeMetric=b.dataset.m; renderAll();};
   });
 }
 
@@ -982,7 +970,7 @@ function metricFromRows(rows, metric){
 
 function renderTrends(rows){
   const yrs = [...F.yrs].sort();
-  const met = activeMetricTrend;
+  const met = activeMetric;
   const colorsYr = [IMC_COLORS.primary, IMC_COLORS.gold, IMC_COLORS.light, IMC_COLORS.pos];
   const isCPV = ['opCPV','opCPM','ipCPV','ipCPM'].includes(met);
   const scale = isMoney(met) && !isCPV ? 1e6 : 1;
@@ -1077,7 +1065,7 @@ function renderTrends(rows){
 // ----------- GROUPS TAB
 function renderGroups(rows){
   const yrs = [...F.yrs].sort();
-  const met = activeMetricGroup;
+  const met = activeMetric;
   document.getElementById('lgBadge').textContent = METRIC_LABEL[met]+' · '+yrs.join('+');
 
   // Aggregate by LG, optionally per-year if YoY
@@ -1183,7 +1171,7 @@ function yoyMaps(rows, col){
   return {y1, y2, a1:aggregate(L.filter(r=>r[0]===y1), r=>r[col]), a2:aggregate(L.filter(r=>r[0]===y2), r=>r[col])};
 }
 function rankChart(id, arr, ym, titleFn){
-  const met = activeMetricGroup, sc = v=>isMoney(met)?v/1e6:v;
+  const met = activeMetric, sc = v=>isMoney(met)?v/1e6:v;
   const short = n=>n.length>36?n.slice(0,33)+'…':n;
   const box = document.getElementById(id).parentElement;
   box.style.height = Math.max(300, arr.length*(ym?30:22)+90)+'px';
@@ -1210,12 +1198,12 @@ function rankChart(id, arr, ym, titleFn){
 // Extra table columns for the ranking metric per year + change, in 2-year mode
 function yoyHead(ym){
   if (!ym) return '';
-  const s = METRIC_SHORT[activeMetricGroup];
+  const s = METRIC_SHORT[activeMetric];
   return `<th class="num">${s} ${ym.y1}</th><th class="num">${s} ${ym.y2}</th><th class="num">Δ %</th>`;
 }
 function yoyCells(ym, x){
   if (!ym) return '';
-  const met = activeMetricGroup;
+  const met = activeMetric;
   const v1 = ((ym.a1.get(x.k)||{})[met])||0, v2 = ((ym.a2.get(x.k)||{})[met])||0;
   const d = v1>0 ? (v2-v1)/v1*100 : null;
   const cls = d==null?'':(d>=0?'chg-pos':'chg-neg');
@@ -1223,12 +1211,12 @@ function yoyCells(ym, x){
 }
 function rankBadge(id, n, noun){
   const yrs=[...F.yrs].sort();
-  document.getElementById(id).textContent = METRIC_LABEL[activeMetricGroup]+' · '+(isYoYMode()?yrs.join(' vs '):yrs.join('+'))+' · '+n+' '+noun;
+  document.getElementById(id).textContent = METRIC_LABEL[activeMetric]+' · '+(isYoYMode()?yrs.join(' vs '):yrs.join('+'))+' · '+n+' '+noun;
 }
 
 // ----------- LOCATIONS
 function renderLocations(rows){
-  const met = activeMetricGroup;
+  const met = activeMetric;
   const byLoc = aggregate(rows, r=>r[C.LOC]);
   const arr = [...byLoc.entries()].map(([k,v])=>{
     const lgI = DATA.locToLg[k];
@@ -1259,7 +1247,7 @@ function renderLocations(rows){
 
 // ----------- PROVIDERS
 function renderProviders(rows){
-  const met = activeMetricGroup;
+  const met = activeMetric;
   const byCP = aggregate(rows, r=>r[C.CP]);
   const arr = [...byCP.entries()].map(([k,v])=>{
     const lgI = DATA.cpToLg[k];
@@ -1288,7 +1276,7 @@ function renderProviders(rows){
 
 // ----------- PAYORS
 function renderPayors(rows){
-  const met = activeMetricGroup;
+  const met = activeMetric;
   const byPay = aggregate(rows, r=>r[C.PAY]);
   const arr = [...byPay.entries()].map(([k,v])=>({k, name:DATA.payors[k], ...v}))
                                    .sort((a,b)=>(b[met]||0)-(a[met]||0));
@@ -1479,12 +1467,15 @@ function renderAll(){
   renderStatus(rows.length);
   renderKPIs(rows);
   const active = document.querySelector('.section.active').id;
+  const usesMetric = ['trends','groups','locations','providers','payors'].includes(active);
+  document.getElementById('metricBar').style.display = usesMetric ? '' : 'none';
+  if (usesMetric) buildMetricPills();
   if (active==='overview') renderOverview(rows);
-  else if (active==='trends') { buildTrendPills(); renderTrends(rows); }
-  else if (active==='groups') { buildGroupPills(); renderGroups(rows); }
-  else if (active==='locations') { buildGroupPills(); renderLocations(rows); }
-  else if (active==='providers') { buildGroupPills(); renderProviders(rows); }
-  else if (active==='payors') { buildGroupPills(); renderPayors(rows); }
+  else if (active==='trends') renderTrends(rows);
+  else if (active==='groups') renderGroups(rows);
+  else if (active==='locations') renderLocations(rows);
+  else if (active==='providers') renderProviders(rows);
+  else if (active==='payors') renderPayors(rows);
   else if (active==='insights') renderInsights(rows);
 }
 
